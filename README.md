@@ -1,39 +1,51 @@
 # Solarify
 
-A solar system in one HTML file, and a workshop for building your own. Sibling of [Globify](https://github.com/TABARC-Code/globified): same idea, bigger room. Open it, watch the planets go round, drop an image on one, and it wears it.
+A solar system in one HTML file, and a workshop for building your own. It's the bigger sibling of [Globify](https://github.com/TABARC-Code/globified): same trick, more spheres.
 
-Nothing to install. Nothing is uploaded anywhere. Three.js is bundled inside the page, so it works offline once you've got the file.
+Open the file and you get our Solar System, planets in the places NASA's formulae give for today. Press **Build your own** and you get an invented one: pick a star, move a few sliders, say where your home world should sit, and it builds the lot. Drag an image onto any planet and the planet wears it.
+
+Nothing is uploaded. There's no server to upload to.
 
 Author: TABARC-Code. Licence: MIT.
 
-## Status, honestly
+## Status
 
-Built and tested locally. The GitHub repository could not be created from the build session (the integration got a 403), so at the time of writing this lives on disk and has not been pushed. If you're reading it on GitHub, that got sorted.
+It works, it's tested in the ways listed under [Tests](#tests), and the awkward parts are listed under [Known limitations](#known-limitations).
+
+Two things I haven't done. I haven't tried it on a real graphics card or a phone beyond checking the layout, because the machine I built it on only has software rendering. And I haven't switched on GitHub Pages. The repository is laid out for it (`index.html` at the root, plus a `.nojekyll` file), but whether Pages serves it properly is unverified.
 
 ## Run it
 
-Download `index.html` and double-click it. That's the lot.
+Download `index.html` and double-click it. Or clone the repository and open the same file:
 
-You need a browser with WebGL. If it hasn't got any, the page says so rather than showing a black rectangle.
+```
+git clone https://github.com/TABARC-Code/solarify
+```
 
-If you'd rather serve it (GitHub Pages, say), the repository has a `.nojekyll` file and `index.html` at the root, so nothing else is required.
+That's all. There's nothing to install and nothing to configure, which is the nicest thing I can say about configuration. Three.js is bundled inside the page, so it works offline.
 
-## Ten seconds
+You need a browser with WebGL. If yours hasn't got it, the page says so in plain text instead of showing a black rectangle.
 
-1. Open the page. That's our Solar System, where the planets really are today.
-2. Press **Build your own**. A system appears.
-3. Move a slider, or pick another star. It rebuilds the moment you let go.
-4. Drag any image onto a planet. It wears it.
+## What a first run looks like
 
-That is the whole front of house. Everything below is there when you go looking, and stays out of the way when you don't.
+A dark page. "Solarify" top left with a date and time under it. The Sun in the middle, orbit rings, labelled planets, and a control panel down the right-hand side (a bottom sheet on phones). The planets move, and the inner ones move fast, because the default is ten days per second.
+
+Press **Build your own** and a toast tells you "Built" followed by a made-up name. The panel grows a short form and a summary line such as "4 rocky planets, 4 giants, 1 asteroid belt, 16 moons". If instead you see only a paragraph about WebGL, that's the fallback message, and the fix is in [Troubleshooting](#troubleshooting).
+
+## Ten seconds of use
+
+1. Open the page. That's our Solar System.
+2. Press **Build your own**.
+3. Move a slider or pick another star. It rebuilds the moment you let go.
+4. Drag any image onto a planet.
+
+Everything below is for when you go looking. It stays out of the way until you do.
 
 ## Our Solar System
 
-- The eight planets, the Sun and the Moon, moving on a date you control, plus the main asteroid belt between Mars and Jupiter.
-- Time from real time up to one year per second, forwards or backwards, pausable, with a "today" button. Dates run from the year 1000 to 3000.
-- Pick any body for a panel of facts: diameter, day length, axis tilt, orbit period, live distance from the Sun, light travel time, and where it sits relative to the Sun's habitable zone.
-- Squeezed or true distances. Enlarged or true sizes. True is accurate and, as you'd expect, mostly empty.
-- A green band for the habitable zone and a dashed line for the snow line, if you want them.
+The eight planets, the Sun and the Moon, plus the main asteroid belt between Mars and Jupiter. Time runs from real time up to one year per second, forwards or backwards, from the year 1000 to 3000, with a **Back to today** button.
+
+Click a body for its panel: diameter, day length, axis tilt, orbit period, live distance from the Sun, how long its light takes to arrive, and where it sits relative to the Sun's habitable zone. **Squeezed** distances and **Enlarged** sizes make it viewable; the **True** buttons show you how empty it really is. A green band marks the habitable zone and a dashed line marks the snow line.
 
 ## Build your own
 
@@ -41,49 +53,51 @@ That is the whole front of house. Everything below is there when you go looking,
 
 | Control | What it does |
 |---|---|
-| Star | Red dwarf, orange dwarf, Sun-like, yellow-white, white, blue-white, red giant, white dwarf, or "Star by mass". Sets the brightness, and so where the habitable zone is. |
+| Star | Red dwarf, orange dwarf, Sun-like, yellow-white, white, blue-white, red giant, white dwarf, or "Star by mass". |
 | Rocky planets | 0 to 8. |
-| Giant planets | 0 to 8. Gas and ice giants, some with rings. |
-| Moons per planet | 0 to 4 for rocky planets. Giants get twice that, unless you say otherwise underneath. |
-| Your home world | In the habitable zone, too hot, too far, or none. It gets a gold ring, "(Home)" in its name, and a gold orbit line. |
+| Giant planets | 0 to 8, gas and ice, some with rings. |
+| Moons per planet | 0 to 4 for rocky planets. Giants get twice that unless you say otherwise underneath. |
+| Your home world | In the habitable zone, too close, too far, or none. It gets a gold ring, "(Home)" in its name and a gold orbit. |
 | Roll a new system | New seed, new system. |
 
-Every control rebuilds the system as soon as you let go of it. There is no Generate button because there shouldn't need to be one.
+Every control rebuilds the system as you release it. There's no Generate button, because a button is one more thing to find.
 
-The summary underneath says what you got, plus any honest complaints. Ask for six moons round a planet that hugs a red dwarf and you'll get fewer, because past a certain distance a moon can't hold an orbit against the star's pull (the Hill sphere). Ask for a home world but no rocky planets and you get one rocky planet; a home has to live somewhere.
+Ask for more than fits and you get less, with a note saying why. Six moons round a planet that hugs a red dwarf comes back with fewer, because past a certain distance a moon can't hold an orbit against the star. A home world with no rocky planets gets you one rocky planet.
 
 ### What's underneath ("More options")
 
 | Control | What it does |
 |---|---|
-| Star mass | Appears when you choose "Star by mass". 0.1 to 10 times the Sun. The star's type, temperature, brightness and lifetime come from the table, and its brightness changes with the system's age. |
-| System age | 0.1 to 12 billion years, or "rolled from the seed". Older stars are brighter. Young systems are volcanic. A home world needs about 2.5 billion years before it has a breathable atmosphere. |
-| Moons per giant | 0 to 8. Follows the simple moons slider until you touch it. |
-| Asteroid belts | 0 to 3. One between the rocky planets and the giants, like ours, then outside and inside as room allows. |
-| Giant planet layout | Conventional (beyond the snow line), eccentric (the first giant on a stretched orbit, nearer in, with the rocky planets kept clear of it), or hot (the first giant very close to the star, everything else well outside it). |
-| Companion star | None, or very close, close, moderate, wide, or distant. Planets then orbit the primary alone, staying clear of the companion's forbidden zone, or circle the pair if the stars are too close for that. If neither fits, there are no planets and the notes say why. |
-| Seed | The same settings and seed always make the same system. |
-| Copy link | A short address that rebuilds this exact system, something like `#s=3.G.0.46.4.4.1.1.2.hz.c.n.12345`. Paste a different link into a tab that already has one open and it rebuilds. The link carries only settings, never your images. |
+| Star mass | Appears when you choose "Star by mass". 0.1 to 10 times the Sun. |
+| System age | 0.1 to 12 billion years, or "rolled from the seed". Older stars are brighter, young systems are volcanic, and a home world needs about 2.5 billion years to get a breathable atmosphere. |
+| Moons per giant | 0 to 8. Follows the simple slider until you touch it. |
+| Asteroid belts | 0 to 3. |
+| Giant planet layout | Conventional, eccentric (first giant on a stretched orbit, nearer in), or hot (first giant very close to the star). |
+| Companion star | None, or very close, close, moderate, wide, or distant. |
+| Seed | Same settings and same seed give the same system, every time. |
+| Copy link | A short address that rebuilds this system, for example `#s=3.G.0.46.4.4.1.1.2.hz.c.n.12345`. |
+
+Pasting a link into a tab that already has one open rebuilds the system. The link holds settings and a seed, never your images.
+
+With a companion star, planets either orbit the primary alone and stay clear of the companion's forbidden zone, or circle the pair when the stars are too close for that. If neither works there are no planets, and the notes under the sliders say so.
 
 ### What a built world tells you
 
-Click any body. A rocky planet's panel gives its size class (Tiny, Small, Standard or Large) and world type, density, surface gravity, mass, atmosphere (how thick, and whether you could breathe it), how much of the surface is liquid water, surface temperature with the climate word that goes with it, the blackbody temperature without an atmosphere for comparison, volcanic activity, resources, habitability and a combined affinity score. A tide-locked world also shows its day-side and night-side temperatures. Giants show their size class, mass and density. The star shows its type, age, lifetime, habitable zone, snow line, and its companion if it has one.
-
-Surface temperature includes the atmosphere (absorption and greenhouse), so a home world in the habitable zone comes out as a believable place to be, from cold to warm depending on where in the zone it sits.
+Click any body. A rocky planet shows its size class and world type, density, gravity, mass, atmosphere (how thick, and whether you could breathe it), how much of the surface is liquid water, surface temperature with a climate word, the temperature it would have without an atmosphere, volcanic activity, resources, habitability, and a combined affinity score. A tide-locked world adds day-side and night-side temperatures. Giants show size class, mass and density. A star shows its type, age, lifetime, habitable zone, snow line, and its companion if it has one.
 
 ## Your own images
 
-This is the Globify trick, and it works on every body in both modes: stars, planets, moons.
+The Globify trick, on every body in both modes: stars, planets, moons.
 
-- **Drop an image on a body** and that body wears it. Drag one over the page and a small label says which body it will go to. Time pauses while you drag so you can aim at a moving planet, and carries on when you let go.
-- **Drop it anywhere else** and it goes on the body you have selected.
-- **Drop several at once** and they dress several bodies in order, starting with the one you dropped on.
-- **Equirectangular, 2:1** wraps most cleanly. Other shapes work but look stretched, and the panel says so.
-- **Your images stay while the page is open.** Roll a new system, change the star, switch to our Solar System and back: your images stay on the same slots (planet b is always planet b). Our Solar System and built systems keep separate sets.
-- **Built-in look** (in the Selected panel) takes one image off. **Clear all my images** (under Project) takes them all off.
-- **Project files** (also under Project) save the system and its images into one file and open it again, in any browser. Images in it are shrunk to a sensible size. Only PNG, JPEG and WebP images are accepted when opening one, and anything else in the file is ignored.
+- **Drop an image on a body** and that body wears it. While you drag, a small label names the body it will go to, and time pauses so you can aim at something that goes round in a second.
+- **Drop it anywhere else** and it goes on the selected body.
+- **Drop several at once** and they dress several bodies in order, starting with the one under the pointer.
+- **2:1 equirectangular** wraps cleanest. Other shapes work but look stretched, and the panel tells you.
+- **Your images stay while the page is open.** Roll a new system, change the star, or switch to our Solar System and back, and each image stays on the same slot (planet b is always planet b). The two kinds of system keep separate sets.
+- **Built-in look** (in the Selected panel) removes one image. **Clear all my images** (under Project) removes the lot.
+- **Project files** (under Project, **Save to a file** and **Open a file**) hold the system and its images in one file you can carry to another browser.
 
-Where to find maps: NASA and USGS publish plenty of planetary maps, and the Solar System Scope textures are popular. Check each source's licence before you reuse or redistribute anything. NASA's media guidelines are generally permissive but "generally" is doing work in that sentence, so read them. I haven't bundled any.
+For maps, NASA and USGS publish plenty, and the Solar System Scope textures are popular. Check each source's licence before you reuse or redistribute anything. NASA's media guidelines are generally permissive, and "generally" is doing a fair amount of work in that sentence. I haven't bundled any.
 
 ## Controls
 
@@ -97,62 +111,51 @@ Where to find maps: NASA and USGS publish plenty of planetary maps, and the Sola
 | `Space` | Pause or play |
 | `[` and `]` | Slower and faster |
 | `R` | Reverse time |
-| `T` | Back to today (or to day 0 in a built system) |
+| `T` | Back to today, or to day 0 in a built system |
 | `O`, `L` and `Z` | Orbits, labels, habitable zone |
-| `?` | Help, `Esc` closes it |
+| `?` | Help. `Esc` closes it |
 
-Moons are listed under their planet's button whenever that planet (or one of its moons) is selected. You can also click a moon in the scene, or its label. On phones the panel becomes a bottom sheet.
+Moons are listed under their planet's button whenever that planet or one of its moons is selected. **Save as PNG** (under View) saves what you can see, minus the panel.
 
 ## What's real and what's staged
 
-This matters, so it gets its own section.
+Our Solar System runs on real numbers: NASA JPL's approximate orbital elements for planet positions (stated accuracy covers 1800 to 2050), and the NASA Planetary Fact Sheet for sizes, spins, tilts and periods. Distance and light time are worked out live from those.
 
-### Our Solar System
+The Moon is staged. It shows the mean phase on a circular orbit, so it can be about half a day out. Spin phase is invented, planets turn at the right rate but from a made-up starting angle. Textures are generated by noise functions, so they're impressions, not photographs. There's no Pluto, because the orbit table doesn't include one.
 
-**Real**
+A built system is never a real place. Three things feed it:
 
-- Planet positions come from NASA JPL's "Keplerian Elements for Approximate Positions of the Major Planets", Table 1, which NASA gives for 1800 to 2050. The values are copied as published. JPL's own page quotes longitude errors of roughly 10 arc-seconds up to 600 arc-seconds across the planets in that window. Outside it, expect it to drift.
-- Body sizes, day lengths, axis tilts, orbital periods, inclinations and eccentricities come from the NASA Planetary Fact Sheet.
-- The distance and light-time figures in the panel are computed from those positions on the date shown.
+- **Real science:** the star presets (Mamajek's dwarf sequence, plus a red giant and a white dwarf I took from Wikipedia, so those two are the shakiest rows), the habitable zone (Kopparapu et al. 2014), and Kepler's third law.
+- **Tabletop-style rules of thumb:** most of the world-building, held in `src/tables.js`. Star life and evolution, orbit spacing, world types, atmosphere, surface temperature, climate, volcanism, resources and habitability. They make believable systems, not accurate ones.
+- **Staged by me:** what sits where around your home world, plus belts, moons, surfaces and lighting. Every star lights its planets equally, so a dim red dwarf's planets are still visible.
 
-**Staged**
+The reasoning behind those choices is in `description.md`.
 
-- The Moon shows the *mean* phase on a circular orbit. It is not an ephemeris and can be off from the true phase by up to about half a day. The tidal lock is real; the exact position is approximate.
-- "Earth" is the Earth-Moon barycentre, because that is what the JPL table gives. The real Earth is under 5,000 km from it.
-- Spin phase is invented. Planets turn at the right *rate* (capped, so fast spinners don't strobe) but not from a true starting angle.
-- Axis tilt amounts are NASA's. The direction each axis leans is only correct for Earth.
-- The asteroid belt is real in extent (roughly 2.2 to 3.2 AU) and made of invented particles.
-- Default sizes and distances are squeezed so you can see things. The "true" buttons undo that.
-- Surface textures are generated procedurally. They are tidy impressions, not photographs.
-- No Pluto. The JPL table doesn't cover it and I didn't want to invent an orbit.
+## Privacy and security
 
-### A built system
+Nothing leaves your machine. None of the code I wrote makes a network request, and the only URL in it is an SVG namespace inside the favicon. Three.js is bundled unmodified and I don't call its loaders.
 
-Nothing in a built system is a real place. The numbers it leans on come from three kinds of source, and it matters which is which.
+The browser stores two small things in `localStorage`: your view settings (orbits, labels, stars, zone, scale modes, speed for our own system) and the last builder settings. No images, no dates, no personal data. The address bar changes to the share link when you build a system; it holds only settings and a seed.
 
-**Real science**
+Your images live in memory until you close the page, or in a project file if you save one. Opening a project file is treated as untrusted input. It must be under 80 MB, parse as JSON, say it's a Solarify project of this version, and contain images only as PNG, JPEG or WebP data URLs (at most 200). Anything else is dropped, and nothing in the file is ever evaluated. That's a description of what the code does, not a promise that it's flawless.
 
-- The six main-sequence star presets are Mamajek's mean dwarf sequence (version 2022.04.16). The red giant and white dwarf are rounded from Wikipedia's figures for Aldebaran and Sirius B, which makes them the shakiest numbers here.
-- The habitable zone is the Kopparapu et al. 2014 fit for a one Earth-mass planet. For the Sun it gives about 0.95 to 1.68 AU. The authors made it for stars between 2600 K and 7200 K; outside that, the code clamps the temperature and says the zone is rough.
-- Orbital periods follow Kepler's third law.
+## Troubleshooting
 
-**Tabletop-style world-building rules**
+**The page shows a paragraph about WebGL and nothing else.** The browser has WebGL switched off or doesn't offer it. Try a current Chrome, Edge, Firefox or Safari and check that hardware acceleration is on.
 
-Most of the world-building rules are lookup tables and procedures of the kind a tabletop system uses to make believable worlds, held in `src/tables.js`. They are rules of thumb, not a current astrophysics dataset. They decide: star mass, age and evolution (brightness changing over a star's life, and how long it lives); the giant-forming snow line (4.85 AU times the square root of the star's starting brightness); orbit spacing and eccentricity; size classes, and the diameter limits that come from temperature and density; density by core type; world types from size and temperature (Hadean, Ice, Ammonia, Garden, Ocean, Greenhouse, Chthonian, Rock, Sulfur); atmosphere pressure; absorption and greenhouse factors, and so surface temperature; climate classes; volcanic activity; resource value and habitability; companion-star separations and eccentricities with their forbidden zones; gas giant masses and densities; axial tilt; and day and night temperatures on tide-locked worlds.
+**It's slow or choppy.** Probably software rendering, meaning no graphics card is being used. It works but won't be smooth, and the busiest built systems are a hundred-odd spheres. Slow time with `[`, or ask for fewer bodies.
 
-**Staged by me**
+**An image looks stretched.** It isn't 2:1. Use an equirectangular map, or live with it.
 
-- How many planets there are, where they sit around your home world, and what the belts, moons, textures and lighting look like. None of that is a model of how planets form.
-- The rule that a home world needs about 2.5 billion years to get a breathable atmosphere. That one is mine, from roughly when Earth's atmosphere gained oxygen.
-- The home world's placement: it is put where *both* the Kopparapu habitable zone and the rules' temperature band for a temperate world agree, so what you ask for and what the planet turns out to be tell the same story.
-- Moons: spaced logarithmically between a minimum distance and about a third of the Hill sphere, on circular orbits, assumed locked to their planet. A planet very close to its star is assumed locked too.
-- The two stars of a binary are drawn on simple Kepler orbits. In the "planets round one star" case the primary sits still and the companion orbits it; in the circumbinary case both circle their shared centre.
-- Lighting is deliberately not realistic: every star lights its planets at the same brightness, tinted towards its colour, so a dim red dwarf's planets are still visible.
-- What isn't modelled: tectonics, special slow-rotation cases, and anything about settlement, technology, society or economy, which don't change what a system looks like.
+**"That is not an image."** The file wasn't recognised. Try a PNG or JPEG.
 
-## Privacy
+**Copy link does nothing.** Some browsers block clipboard access, especially from a `file://` page. The toast shows the address instead. Copy it from the address bar.
 
-`localStorage` holds your view settings (orbits, labels, stars, zone, scale modes, speed for our own system) and the last settings you used in the builder form. No image, no date, no personal data. The address in the browser bar changes to the share link when you build a system; it contains only those settings and the seed. Your images live in memory until you close the page, or in a project file if you save one.
+**A project file is refused.** Either it isn't a Solarify project file or it was made by a different version of the builder. The message says which.
+
+**Keyboard shortcuts stopped working.** A slider or dropdown has focus, and shortcuts are ignored while one does. Click an empty part of the scene and they return.
+
+**I asked for eight giants and got five.** The star's planet-forming limits (and a companion's forbidden zone) are real constraints in the rules. The notes under the sliders say what was dropped.
 
 ## Tests
 
@@ -161,34 +164,33 @@ node tests/orbits.test.js
 node tests/system.test.js
 ```
 
-No dependencies, no network.
+No dependencies, no network. I ran them on Node 22. Other versions are untested.
 
-`orbits.test.js` has 28 checks on the orbit maths against real events: equinoxes and solstices (with the precession correction, see the file header for why that's needed), Earth's perihelion and aphelion for 2025, planetary oppositions, Jupiter's mean motion, Kepler's equation, and Moon phase against real full and new moons (within eight degrees).
+`orbits.test.js` has 28 checks on the orbit maths against real events: equinoxes and solstices (with a precession correction, explained in the file header), Earth's perihelion and aphelion, planetary oppositions, Kepler's equation, and Moon phase against real full and new moons.
 
-`system.test.js` has 40 checks. Some compare against published numbers (the Sun's habitable zone, Kepler's third law for Jupiter, entries from the star table). Some check arithmetic the builder promises (gravity is density times diameter, mass is density times diameter cubed, climate follows surface temperature, diameters stay inside their size class). The big one generates 864 random systems across every star type, home setting, giant layout, and companion class, and checks what must always be true: the counts match what was asked for (or a note says why not), orbits never cross, nothing is inside its star, planets stay out of a companion's forbidden zone, belts keep clear of planets, moons stay inside the Hill limit, home worlds land where requested, ages never exceed a star's lifetime, the same seed gives the same system, and share links survive a round trip. I also ran the same checks over 20,000 fully random systems once; they passed. That run, and writing the rules in the first place, turned up a handful of real bugs, which is rather the point of having it.
+`system.test.js` has 40 checks: published numbers, arithmetic the builder promises, and a fuzz run of 864 random systems checking what must always hold. Orbits never cross, nothing sits inside its star, planets stay out of a companion's forbidden zone, belts keep clear, moons stay inside the stability limit, and the same seed gives the same system. Both files passed when I last ran them. I also pushed 20,000 fully random systems through the same checks once, and those passed too.
 
-All 68 passed when I last ran them.
+The interface has no automated tests in this repository. I checked it with throwaway Playwright scripts in headless Chromium, covering selection, keys, time, scale modes, the builder form, both companion-star cases, belts, the planet panel, share links, dropping images, project files (including hostile ones), a phone-sized viewport and the no-WebGL fallback. Those scripts aren't included, so treat the interface as looked at, not covered.
 
-There are no automated browser tests in this repository. I checked the interface with throwaway Playwright scripts in headless Chromium: selection, keys, time, scale modes, the builder form and every control in it, both binary regimes, belts, the full planet panel, share links, dropping images on a chosen planet, several at once, images surviving a reroll, the project file round trip and hostile project files, every body in a spread of systems (including empty ones, giants-only and the heaviest the form allows), a phone-sized viewport, and the no-WebGL fallback. Those scripts are not included, so treat the UI as "looked at", not "covered".
+## Build
 
-## Building
-
-`index.html` is generated and committed, so that double-clicking and Pages both work.
+`index.html` is generated and committed, so double-clicking works without a build step.
 
 ```
 python3 build.py          # writes index.html
 python3 build.py --check  # fails if index.html is stale
 ```
 
-Source is in `src/` (`template.html`, `app.js`, `orbits.js`, `tables.js`, `system.js`). Three.js r128 is in `vendor/`. Edit the sources, never the built file. Python 3, standard library only.
+Source lives in `src/` (`template.html`, `app.js`, `orbits.js`, `tables.js`, `system.js`) with Three.js r128 in `vendor/`. Edit the sources, never the built file. Python 3, standard library only; I used 3.13.
 
-## Known rough edges
+## Known limitations
 
-- Software rendering (no GPU) is slow. The page works but won't be smooth, and the heaviest built system is a lot of spheres. On a real GPU that should be fine; I haven't tried a weak phone.
-- In a built system, every texture is painted in the background after you build it. Planets pop in over a few seconds, and the one you select sharpens when you do.
-- Asking for a lot can exceed what fits. The star's planet-forming limits (and a companion's forbidden zone) are real constraints in the rules, so some requests come back with fewer giants, rocky planets, belts or moons than you asked for. The notes under the sliders say which and why.
+- Our own planets lose accuracy outside 1800 to 2050. A note appears, and deserves the suspicion it implies.
+- A built system has a day count, not a date.
+- No Pluto, no individual asteroids, and no moons for our planets other than ours.
+- Built textures are painted in the background after you build. Planets pop in over a few seconds, and the one you select sharpens when you do.
+- If I change how systems are generated, old share links stop matching. They carry a version number, so they're refused, not quietly turned into something else.
+- Images aren't saved automatically. Use a project file.
 - The date readout can sit over a body in close-ups.
-- Dates outside 1800 to 2050 in our own system show a note, and deserve the suspicion it implies.
-- Share links carry a version number. If I ever change how systems are generated, old links get rejected rather than quietly producing a different system, and the page falls back to our own.
 
-See `description.md` for why it's built the way it is.
+`description.md` has the reasoning, the trade-offs, and the parts I'd change first.
