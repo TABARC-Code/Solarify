@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solarify</title>
+<meta name="description" content="A solar system you can spin, speed up and re-skin in your browser. Planets sit where they really are today. One HTML file, no upload, no install.">
+<meta name="theme-color" content="#0A0F1C">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%230A0F1C'/><ellipse cx='32' cy='32' rx='26' ry='11' fill='none' stroke='%236FA294' stroke-width='2' transform='rotate(-20 32 32)'/><circle cx='32' cy='32' r='8' fill='%23E8B04A'/><circle cx='52' cy='24' r='4' fill='%234F8FD0'/></svg>">
+<style>
+  :root{
+    --void:#0A0F1C; --panel:#141B2B; --panel-hi:#1B2438;
+    --ink:#EDE6D6; --muted:#A99F8A; --brass:#C89B4A; --brass-dim:#7A6030;
+    --verdigris:#6FA294; --rule:rgba(200,155,74,.26);
+    --panel-w:340px;
+    --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0;height:100%;background:var(--void);color:var(--ink);font-family:var(--font);overflow:hidden}
+  :focus-visible{outline:2px solid var(--verdigris);outline-offset:2px}
+  button{font:inherit;color:inherit}
+
+  #stage{position:fixed;inset:0}
+  #stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+  #stage canvas.dragging{cursor:grabbing}
+
+  #hud{position:fixed;top:0;left:0;padding:18px 20px;pointer-events:none;z-index:3}
+  #hud h1{margin:0;font:italic 400 clamp(22px,5vw,30px)/1 Georgia,"Times New Roman",serif;letter-spacing:.005em}
+  #dateText{margin-top:8px;font:500 15px/1.3 var(--mono);color:var(--brass);letter-spacing:.02em}
+  #rangeNote{margin-top:4px;max-width:30ch;font-size:12.5px;line-height:1.35;color:var(--muted)}
+
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
+  .label{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;white-space:nowrap;
+    background:rgba(10,15,28,.55);border:1px solid transparent;color:var(--ink);
+    padding:2px 7px;font-size:12px;border-radius:3px;transform:translate(-9999px,-9999px);will-change:transform}
+  .label:hover,.label.selected{border-color:var(--brass);color:#fff}
+  .label.selected{background:rgba(200,155,74,.22)}
+
+  /* ---------- panel ---------- */
+  #panel{position:fixed;top:0;right:0;bottom:0;width:var(--panel-w);z-index:5;overflow-y:auto;
+    background:linear-gradient(to bottom,rgba(27,36,56,.97),rgba(20,27,43,.985));
+    border-left:1px solid var(--rule);padding:0 18px 28px}
+  #handle{display:none}
+  .group{border-top:1px solid var(--rule)}
+  .group:first-of-type{border-top:none}
+  .group summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+    padding:15px 0;font-weight:700;font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--brass)}
+  .group summary::-webkit-details-marker{display:none}
+  .group summary::after{content:'+';font-size:18px;line-height:1;color:var(--muted)}
+  .group[open] summary::after{content:'\2212'}
+  .group > :not(summary){margin-bottom:14px}
+  .label-t{display:block;margin-bottom:7px;font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .hint{margin:8px 0 0;font-size:13.5px;line-height:1.45;color:var(--muted)}
+
+  .btn{width:100%;padding:10px 12px;cursor:pointer;background:none;border:1px solid var(--rule);
+    color:var(--brass);font-weight:700;font-size:14px;text-align:center}
+  .btn:hover{background:rgba(200,155,74,.12)}
+  .btn[aria-pressed=true]{background:rgba(200,155,74,.2);border-color:var(--brass)}
+  .btn:disabled{opacity:.4;cursor:default}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--rule)}
+  .seg .btn{border:none;border-right:1px solid var(--rule);color:var(--muted)}
+  .seg .btn:last-child{border-right:none}
+  .seg .btn[aria-pressed=true]{color:var(--brass)}
+
+  input[type=range]{width:100%;accent-color:var(--brass);margin:6px 0 0}
+  #speedLabel{font:500 13px var(--mono);color:var(--brass)}
+
+  #bodyList{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  #bodyList .btn{padding:8px 6px;font-size:13.5px}
+  #selName{margin:0;font:italic 400 22px/1.15 Georgia,"Times New Roman",serif}
+  #selKind{margin:2px 0 10px;font-size:13px;color:var(--muted)}
+  #facts{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0 0 4px;font-size:13.5px;line-height:1.35}
+  #facts dt{color:var(--muted)}
+  #facts dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+  #facts .live{color:var(--brass)}
+  #factNote{font-size:12px;color:var(--muted);margin:6px 0 0}
+
+  #help,#toastWrap{position:fixed;z-index:20}
+  #help{inset:0;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:rgba(10,15,28,.92);backdrop-filter:blur(6px)}
+  #help .card{width:100%;max-width:440px;background:var(--panel);border:1px solid var(--rule);padding:20px}
+  #help h2{margin:0 0 6px;font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--brass)}
+  #help dl{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;margin:14px 0 16px;font-size:14px;line-height:1.35}
+  #help dt{color:var(--brass);font-weight:700}
+  #help dd{margin:0;color:var(--muted)}
+  kbd{font:12px var(--mono);border:1px solid var(--rule);padding:0 5px;color:var(--ink)}
+  #toastWrap{left:50%;bottom:20px;transform:translateX(-50%);pointer-events:none;max-width:min(92vw,520px)}
+  #toast{background:rgba(20,27,43,.96);border:1px solid var(--rule);padding:9px 14px;font-size:14px;
+    opacity:0;transition:opacity .25s}
+  #toast.show{opacity:1}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* ---------- phones: panel becomes a bottom sheet ---------- */
+  @media(max-width:819px){
+    #panel{top:auto;left:0;right:0;width:auto;max-height:62vh;border-left:none;border-top:1px solid var(--rule);
+      padding-bottom:max(24px,env(safe-area-inset-bottom));transform:translateY(calc(100% - 50px));transition:transform .3s}
+    #panel.open{transform:none}
+    #handle{display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:2;
+      width:calc(100% + 36px);margin:0 -18px;height:50px;
+      background:var(--panel);border:none;border-bottom:1px solid var(--rule);color:var(--brass);cursor:pointer;
+      padding:0 20px;font-weight:700;font-size:13px;letter-spacing:.09em;text-transform:uppercase}
+    #hud{padding:14px 16px}
+    #toastWrap{bottom:64px}
+  }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<div id="hud">
+  <h1>Solarify</h1>
+  <div id="dateText" aria-live="off">—</div>
+  <div id="rangeNote" hidden>Outside 1800 to 2050 the NASA formula behind these positions is only a rough guide.</div>
+</div>
+
+<div id="labels"></div>
+
+<aside id="panel" aria-label="Controls">
+  <button id="handle" aria-expanded="false" aria-controls="panelBody"><span>Controls</span><span aria-hidden="true">+</span></button>
+  <div id="panelBody">
+
+    <details class="group" id="sec-time" open>
+      <summary>Time</summary>
+      <div class="row2">
+        <button class="btn" id="playPause" aria-pressed="false">Pause</button>
+        <button class="btn" id="reverse" aria-pressed="false">Run backwards</button>
+      </div>
+      <div>
+        <label class="label-t" for="speed">Speed</label>
+        <div id="speedLabel">—</div>
+        <input type="range" id="speed" min="0" max="6" step="1" value="3" aria-describedby="speedLabel">
+      </div>
+      <button class="btn" id="today">Back to today</button>
+      <p class="hint" id="timeHint">Planets sit where they really are on the date shown. Spin is slowed at high speeds so planets don't strobe.</p>
+    </details>
+
+    <details class="group" id="sec-bodies" open>
+      <summary>Bodies</summary>
+      <div id="bodyList" role="group" aria-label="Choose a body"></div>
+      <button class="btn" id="overview">Whole system (0)</button>
+    </details>
+
+    <details class="group" id="sec-selected" open>
+      <summary>Selected</summary>
+      <div>
+        <h2 id="selName">Sun</h2>
+        <p id="selKind" aria-live="polite">Star</p>
+        <dl id="facts"></dl>
+        <p id="factNote">Sizes, spin and orbit figures: NASA Planetary Fact Sheet. Distance and light time are worked out live from the date.</p>
+      </div>
+      <div class="row2">
+        <button class="btn" id="mapBtn">Use my own map…</button>
+        <button class="btn" id="mapReset" disabled>Built-in look</button>
+      </div>
+      <input type="file" id="mapFile" accept="image/*" hidden>
+      <p class="hint" id="mapMsg">Drop an equirectangular map (2:1) anywhere to dress the selected body. It stays in this tab; nothing is uploaded.</p>
+    </details>
+
+    <details class="group" id="sec-view">
+      <summary>View</summary>
+      <div class="row3">
+        <button class="btn" id="tOrbits" aria-pressed="true">Orbits</button>
+        <button class="btn" id="tLabels" aria-pressed="true">Labels</button>
+        <button class="btn" id="tStars" aria-pressed="true">Stars</button>
+      </div>
+      <div>
+        <span class="label-t" id="distLabel">Distances</span>
+        <div class="seg" role="group" aria-labelledby="distLabel">
+          <button class="btn" id="distSqueezed" aria-pressed="true">Squeezed</button>
+          <button class="btn" id="distTrue" aria-pressed="false">True</button>
+        </div>
+      </div>
+      <div>
+        <span class="label-t" id="sizeLabel">Sizes</span>
+        <div class="seg" role="group" aria-labelledby="sizeLabel">
+          <button class="btn" id="sizeBig" aria-pressed="true">Enlarged</button>
+          <button class="btn" id="sizeTrue" aria-pressed="false">True</button>
+        </div>
+      </div>
+      <p class="hint" id="scaleHint"></p>
+      <div class="row2">
+        <button class="btn" id="savePng">Save as PNG</button>
+        <button class="btn" id="helpOpen">Shortcuts (?)</button>
+      </div>
+    </details>
+
+  </div>
+</aside>
+
+<div id="help" hidden role="dialog" aria-modal="true" aria-labelledby="helpCap">
+  <div class="card">
+    <h2 id="helpCap">Controls and shortcuts</h2>
+    <dl>
+      <dt>Look around</dt><dd>Drag, or the arrow keys</dd>
+      <dt>Zoom</dt><dd>Wheel, pinch, or <kbd>+</kbd> and <kbd>-</kbd></dd>
+      <dt>Pick a body</dt><dd>Click its name, or <kbd>1</kbd> to <kbd>8</kbd> for Mercury to Neptune, <kbd>9</kbd> for the Moon</dd>
+      <dt>Whole system</dt><dd><kbd>0</kbd></dd>
+      <dt>Time</dt><dd><kbd>Space</kbd> pause, <kbd>[</kbd> slower, <kbd>]</kbd> faster, <kbd>R</kbd> reverse, <kbd>T</kbd> today</dd>
+      <dt>Show or hide</dt><dd><kbd>O</kbd> orbits, <kbd>L</kbd> labels</dd>
+      <dt>Dress a body</dt><dd>Select it, then drop a 2:1 map on the page</dd>
+      <dt>This list</dt><dd><kbd>?</kbd> to open, <kbd>Esc</kbd> to close</dd>
+    </dl>
+    <button class="btn" id="helpClose">Close</button>
+  </div>
+</div>
+
+<div id="toastWrap"><div id="toast" role="status" aria-live="polite"></div></div>
+
+<!--THREE-->
+<!--ORBITS-->
+<!--APP-->
+</body>
+</html>
