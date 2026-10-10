@@ -101,8 +101,9 @@ function precessionDeg(jd){
 
 // Mean angle from the Sun to the Moon, as seen from Earth, in radians (0 new, pi full).
 function moonElongation(jd){ var f = ((jd - JD_NEW_MOON) / SYNODIC) % 1; if (f < 0) f += 1; return f * TAU; }
-function moonDirEcl(lambda, out){
-  var beta = MOON_INCL * Math.sin(lambda);
+// incl is optional, in radians; the default is the real Moon's 5.145 degrees.
+function moonDirEcl(lambda, out, incl){
+  var beta = (incl == null ? MOON_INCL : incl) * Math.sin(lambda);
   out.x = Math.cos(beta) * Math.cos(lambda);
   out.y = Math.cos(beta) * Math.sin(lambda);
   out.z = Math.sin(beta);

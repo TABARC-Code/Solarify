@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Solarify</title>
-<meta name="description" content="A solar system you can spin, speed up and re-skin in your browser. Planets sit where they really are today. One HTML file, no upload, no install.">
+<meta name="description" content="A solar system you can spin, speed up and re-skin in your browser, or build your own: pick the star, the planets, the moons and where your home world sits. One HTML file, no upload, no install.">
 <meta name="theme-color" content="#0A0F1C">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%230A0F1C'/><ellipse cx='32' cy='32' rx='26' ry='11' fill='none' stroke='%236FA294' stroke-width='2' transform='rotate(-20 32 32)'/><circle cx='32' cy='32' r='8' fill='%23E8B04A'/><circle cx='52' cy='24' r='4' fill='%234F8FD0'/></svg>">
 <style>
@@ -36,6 +36,7 @@
     background:rgba(10,15,28,.55);border:1px solid transparent;color:var(--ink);
     padding:2px 7px;font-size:12px;border-radius:3px;transform:translate(-9999px,-9999px);will-change:transform}
   .label:hover,.label.selected{border-color:var(--brass);color:#fff}
+  .label.belt{pointer-events:none;cursor:default;color:var(--muted);font-style:italic;background:rgba(10,15,28,.35)}
   .label.selected{background:rgba(200,155,74,.22)}
 
   /* ---------- panel ---------- */
@@ -71,6 +72,22 @@
 
   #bodyList{display:grid;grid-template-columns:1fr 1fr;gap:6px}
   #bodyList .btn{padding:8px 6px;font-size:13.5px}
+  #sysName{margin-top:6px;font:italic 400 15px/1.2 Georgia,"Times New Roman",serif;color:var(--verdigris)}
+  select,input[type=number]{width:100%;padding:9px 10px;background:var(--panel-hi);border:1px solid var(--rule);color:var(--ink);font:inherit;font-size:14px;border-radius:0}
+  .field{margin:0 0 12px}
+  .field output{float:right;color:var(--brass);font:500 13px var(--mono);letter-spacing:0;text-transform:none}
+  details.sub{margin:0 0 12px;border:1px solid var(--rule);padding:0 12px}
+  details.sub summary{cursor:pointer;padding:10px 0;font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  details.sub[open] summary{border-bottom:1px solid var(--rule);margin-bottom:12px}
+  .seedrow{display:grid;grid-template-columns:1fr 92px;gap:8px}
+  .btn.primary{background:rgba(200,155,74,.22);border-color:var(--brass);color:#fff;margin-bottom:8px}
+  #sysNotes{margin:8px 0 0;padding:0 0 0 18px;font-size:13px;line-height:1.4;color:var(--muted)}
+  #sysNotes li{margin:0 0 4px}
+  #sysSummary{margin-top:10px}
+  #dropHint{position:fixed;z-index:15;pointer-events:none;padding:6px 10px;background:rgba(20,27,43,.96);border:1px solid var(--brass);color:#fff;font-size:13px;transform:translate(14px,14px)}
+  #moonWrap{margin-top:12px}
+  #moonList{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  #moonList .btn{padding:7px 6px;font-size:13px}
   #selName{margin:0;font:italic 400 22px/1.15 Georgia,"Times New Roman",serif}
   #selKind{margin:2px 0 10px;font-size:13px;color:var(--muted)}
   #facts{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0 0 4px;font-size:13.5px;line-height:1.35}
@@ -113,6 +130,7 @@
 
 <div id="hud">
   <h1>Solarify</h1>
+  <div id="sysName" hidden></div>
   <div id="dateText" aria-live="off">—</div>
   <div id="rangeNote" hidden>Outside 1800 to 2050 the NASA formula behind these positions is only a rough guide.</div>
 </div>
@@ -122,6 +140,57 @@
 <aside id="panel" aria-label="Controls">
   <button id="handle" aria-expanded="false" aria-controls="panelBody"><span>Controls</span><span aria-hidden="true">+</span></button>
   <div id="panelBody">
+
+    <details class="group" id="sec-system" open>
+      <summary>System</summary>
+      <div class="seg" role="group" aria-label="Which system">
+        <button class="btn" id="modeSol" aria-pressed="true">Our Solar System</button>
+        <button class="btn" id="modeBuild" aria-pressed="false">Build your own</button>
+      </div>
+      <div id="buildForm" hidden>
+        <div class="field"><label class="label-t" for="fStar">Star</label><select id="fStar"></select></div>
+        <div class="field"><label class="label-t" for="fInner">Rocky planets <output id="oInner" for="fInner">4</output></label>
+          <input type="range" id="fInner" min="0" max="8" step="1" value="4"></div>
+        <div class="field"><label class="label-t" for="fOuter">Giant planets <output id="oOuter" for="fOuter">4</output></label>
+          <input type="range" id="fOuter" min="0" max="8" step="1" value="4"></div>
+        <div class="field"><label class="label-t" for="fMoonsInner">Moons per planet <output id="oMoonsInner" for="fMoonsInner">1</output></label>
+          <input type="range" id="fMoonsInner" min="0" max="4" step="1" value="1"></div>
+        <div class="field"><label class="label-t" for="fHome">Your home world</label><select id="fHome">
+          <option value="hz">In the habitable zone</option>
+          <option value="hot">Too close: inside the zone</option>
+          <option value="cold">Too far: beyond the zone</option>
+          <option value="none">No home world</option></select></div>
+        <button class="btn primary" id="fRoll">Roll a new system</button>
+        <p class="hint" id="sysSummary" aria-live="polite"></p>
+        <ul id="sysNotes"></ul>
+        <p class="hint">Drop an image on any planet to dress it. Several images dress several planets in order.</p>
+        <details class="sub" id="advanced">
+          <summary>More options</summary>
+          <div class="field" id="massRow" hidden><label class="label-t" for="fMass">Star mass <output id="oMass" for="fMass">1.00 × Sun</output></label>
+            <input type="range" id="fMass" min="10" max="1000" step="5" value="100"></div>
+          <div class="field"><label class="label-t" for="fAge">System age <output id="oAge" for="fAge">4.6 billion years</output></label>
+            <input type="range" id="fAge" min="0" max="120" step="1" value="46"></div>
+          <div class="field"><label class="label-t" for="fMoonsOuter">Moons per giant <output id="oMoonsOuter" for="fMoonsOuter">2</output></label>
+            <input type="range" id="fMoonsOuter" min="0" max="8" step="1" value="2"></div>
+          <div class="field"><label class="label-t" for="fBelts">Asteroid belts <output id="oBelts" for="fBelts">1</output></label>
+            <input type="range" id="fBelts" min="0" max="3" step="1" value="1"></div>
+          <div class="field"><label class="label-t" for="fGiants">Giant planet layout</label><select id="fGiants">
+            <option value="c">Conventional: beyond the snow line</option>
+            <option value="e">Eccentric: first giant on a stretched orbit, nearer in</option>
+            <option value="h">Hot: first giant very close to the star</option></select></div>
+          <div class="field"><label class="label-t" for="fCompanion">Companion star</label><select id="fCompanion">
+            <option value="n">None</option>
+            <option value="v">Very close (typically about 0.3 AU apart)</option>
+            <option value="c">Close (about 3 AU)</option>
+            <option value="m">Moderate (about 14 AU)</option>
+            <option value="w">Wide (about 70 AU)</option>
+            <option value="d">Distant (about 350 AU)</option></select></div>
+          <div class="field"><label class="label-t" for="fSeed">Seed</label>
+            <div class="seedrow"><input type="number" id="fSeed" min="0" max="4294967295" step="1" value="1"><button class="btn" id="fCopy">Copy link</button></div></div>
+          <p class="hint">The same settings and seed always make the same system. The link carries only those, never your images.</p>
+        </details>
+      </div>
+    </details>
 
     <details class="group" id="sec-time" open>
       <summary>Time</summary>
@@ -141,6 +210,7 @@
     <details class="group" id="sec-bodies" open>
       <summary>Bodies</summary>
       <div id="bodyList" role="group" aria-label="Choose a body"></div>
+      <div id="moonWrap" hidden><span class="label-t" id="moonLabel">Moons</span><div id="moonList" role="group" aria-labelledby="moonLabel"></div></div>
       <button class="btn" id="overview">Whole system (0)</button>
     </details>
 
@@ -157,7 +227,18 @@
         <button class="btn" id="mapReset" disabled>Built-in look</button>
       </div>
       <input type="file" id="mapFile" accept="image/*" hidden>
-      <p class="hint" id="mapMsg">Drop an equirectangular map (2:1) anywhere to dress the selected body. It stays in this tab; nothing is uploaded.</p>
+      <p class="hint" id="mapMsg">Drop an image on a body to dress it, or anywhere on the page to dress the selected one. 2:1 equirectangular maps wrap best. Nothing is uploaded.</p>
+    </details>
+
+    <details class="group" id="sec-project">
+      <summary>Project</summary>
+      <div class="row2">
+        <button class="btn" id="projSave">Save to a file</button>
+        <button class="btn" id="projOpen">Open a file</button>
+      </div>
+      <input type="file" id="projFile" accept=".json,application/json" hidden>
+      <button class="btn" id="mapsClear" disabled>Clear all my images</button>
+      <p class="hint" id="projHint">A project file holds the system and the images you have put on it, so you can carry it to another browser. It never leaves your computer unless you send it.</p>
     </details>
 
     <details class="group" id="sec-view">
@@ -167,6 +248,7 @@
         <button class="btn" id="tLabels" aria-pressed="true">Labels</button>
         <button class="btn" id="tStars" aria-pressed="true">Stars</button>
       </div>
+      <button class="btn" id="tZone" aria-pressed="true">Habitable zone and snow line</button>
       <div>
         <span class="label-t" id="distLabel">Distances</span>
         <div class="seg" role="group" aria-labelledby="distLabel">
@@ -197,10 +279,10 @@
     <dl>
       <dt>Look around</dt><dd>Drag, or the arrow keys</dd>
       <dt>Zoom</dt><dd>Wheel, pinch, or <kbd>+</kbd> and <kbd>-</kbd></dd>
-      <dt>Pick a body</dt><dd>Click its name, or <kbd>1</kbd> to <kbd>8</kbd> for Mercury to Neptune, <kbd>9</kbd> for the Moon</dd>
+      <dt>Pick a body</dt><dd>Click it or its name. <kbd>1</kbd> to <kbd>9</kbd> pick planets in order (our system: <kbd>9</kbd> is the Moon). <kbd>,</kbd> and <kbd>.</kbd> step to the previous or next body</dd>
       <dt>Whole system</dt><dd><kbd>0</kbd></dd>
-      <dt>Time</dt><dd><kbd>Space</kbd> pause, <kbd>[</kbd> slower, <kbd>]</kbd> faster, <kbd>R</kbd> reverse, <kbd>T</kbd> today</dd>
-      <dt>Show or hide</dt><dd><kbd>O</kbd> orbits, <kbd>L</kbd> labels</dd>
+      <dt>Time</dt><dd><kbd>Space</kbd> pause, <kbd>[</kbd> slower, <kbd>]</kbd> faster, <kbd>R</kbd> reverse, <kbd>T</kbd> today (or the start, in a built system)</dd>
+      <dt>Show or hide</dt><dd><kbd>O</kbd> orbits, <kbd>L</kbd> labels, <kbd>Z</kbd> habitable zone</dd>
       <dt>Dress a body</dt><dd>Select it, then drop a 2:1 map on the page</dd>
       <dt>This list</dt><dd><kbd>?</kbd> to open, <kbd>Esc</kbd> to close</dd>
     </dl>
@@ -208,10 +290,14 @@
   </div>
 </div>
 
+<div id="dropHint" hidden></div>
+
 <div id="toastWrap"><div id="toast" role="status" aria-live="polite"></div></div>
 
 <!--THREE-->
 <!--ORBITS-->
+<!--TABLES-->
+<!--SYSTEM-->
 <!--APP-->
 </body>
 </html>

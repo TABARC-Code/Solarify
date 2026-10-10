@@ -14,18 +14,22 @@ root = Path(__file__).resolve().parent
 template = (root / "src" / "template.html").read_text(encoding="utf-8")
 three = (root / "vendor" / "three.r128.min.js").read_text(encoding="utf-8")
 orbits = (root / "src" / "orbits.js").read_text(encoding="utf-8")
+tables = (root / "src" / "tables.js").read_text(encoding="utf-8")
+system = (root / "src" / "system.js").read_text(encoding="utf-8")
 app = (root / "src" / "app.js").read_text(encoding="utf-8")
 
-for name, code in (("three", three), ("orbits", orbits), ("app", app)):
+for name, code in (("three", three), ("orbits", orbits), ("tables", tables), ("system", system), ("app", app)):
     if "</script" in code.lower():
         sys.exit("build: %s contains a closing script tag, which would end the page early" % name)
 
-for marker in ("<!--THREE-->", "<!--ORBITS-->", "<!--APP-->"):
+for marker in ("<!--THREE-->", "<!--ORBITS-->", "<!--TABLES-->", "<!--SYSTEM-->", "<!--APP-->"):
     if template.count(marker) != 1:
         sys.exit("build: template needs exactly one %s" % marker)
 
 html = template.replace("<!--THREE-->", "<script>" + three.strip() + "</script>")
 html = html.replace("<!--ORBITS-->", "<script>\n" + orbits.strip() + "\n</script>")
+html = html.replace("<!--TABLES-->", "<script>\n" + tables.strip() + "\n</script>")
+html = html.replace("<!--SYSTEM-->", "<script>\n" + system.strip() + "\n</script>")
 html = html.replace("<!--APP-->", "<script>\n" + app.strip() + "\n</script>")
 
 out = root / "index.html"

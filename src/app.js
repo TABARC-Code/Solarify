@@ -1,23 +1,30 @@
 /* Solarify. Author: TABARC-Code. MIT licence.
  *
- * Where the numbers come from:
+ * Two kinds of system live in this file.
+ *
+ * Our Solar System (the default):
  *   - Sizes, spin, tilt and orbit periods: NASA Planetary Fact Sheet
  *     (nssdc.gsfc.nasa.gov/planetary/factsheet).
  *   - Planet positions: the Keplerian elements and algorithm NASA JPL publishes
  *     in "Keplerian Elements for Approximate Positions of the Major Planets"
  *     (ssd.jpl.nasa.gov/planets/approx_pos.html), Table 1, valid 1800 to 2050.
  *   - The Moon is NOT an ephemeris. Its phase uses the mean synodic month and its
- *     orbit is a circle. See README for what is real and what is staged.
+ *     orbit is a circle.
+ *
+ * A built system ("Build your own"): made up by src/system.js. Real star numbers, real
+ * habitable-zone maths, invented planets. Nothing in it claims to be an actual place.
+ * See README for what is real and what is staged.
  */
 (function(){
 'use strict';
 
-var THREE = window.THREE, O = window.SolarifyOrbits;
+var THREE = window.THREE, O = window.SolarifyOrbits, SYS = window.SolarifySystem;
 var TAU = Math.PI * 2, DEG = Math.PI / 180;
 var AU_KM = 149597870.7, C_KMS = 299792.458;
-var SCENE_AU_TRUE = 20;               // scene units per AU when distances are true
-var SQUEEZE_K = 8;                    // squeezed distance = 8 * sqrt(AU)
-var JD_MIN = 2086307.5, JD_MAX = 2816787.5;   // years 1000 to 3000
+var SCENE_AU_TRUE = 20;               // scene units per 'system unit' when distances are true
+var SQUEEZE_K = 8;                    // squeezed distance = 8 * sqrt(AU / system unit)
+var JD_MIN = 2086307.5, JD_MAX = 2816787.5;   // years 1000 to 3000, our own system
+var CUSTOM_SPAN_DAYS = 36525000;      // a built system runs 100,000 years either side of its start
 
 function $(id){ return document.getElementById(id); }
 function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
@@ -27,36 +34,47 @@ function fmtNum(n, digits){ return n.toLocaleString('en-GB', {maximumFractionDig
 
 /* ------------------------------------------------------------------
    1. Data
-   The orbit elements themselves live in orbits.js (JPL Table 1). 'earth' there is the
+   The orbit elements for our own system live in orbits.js (JPL Table 1). 'earth' there is the
    Earth-Moon barycentre, as JPL tabulates it; the real Earth is under 5,000 km from it,
-   far below a pixel here.
+   far below a pixel here. A built system comes from system.js in the same shape.
 ------------------------------------------------------------------ */
-var BODIES = [
-  {id:'sun', name:'Sun', kind:'Star', radiusKm:695700, diameter:'1,391,400 km', rotH:609.12,
-   rotNote:'at 16° latitude', obliq:7.25, color:0xffb040, key:null},
-  {id:'mercury', name:'Mercury', kind:'Planet, rocky', radiusKm:2439.5, rotH:1407.6, obliq:0.034,
-   periodDays:88.0, incl:7.0, ecc:0.206, color:0x9a8f84, key:'1'},
-  {id:'venus', name:'Venus', kind:'Planet, rocky', radiusKm:6052, rotH:5832.5, retro:true, obliq:177.4,
-   periodDays:224.7, incl:3.4, ecc:0.007, color:0xe0c690, key:'2'},
-  {id:'earth', name:'Earth', kind:'Planet, rocky', radiusKm:6378, rotH:23.9, obliq:23.4,
-   periodDays:365.2, incl:0.0, ecc:0.017, color:0x3a74b8, key:'3'},
-  {id:'mars', name:'Mars', kind:'Planet, rocky', radiusKm:3396, rotH:24.6, obliq:25.2,
-   periodDays:687.0, incl:1.8, ecc:0.094, color:0xb4623a, key:'4'},
-  {id:'jupiter', name:'Jupiter', kind:'Planet, gas giant', radiusKm:71492, rotH:9.9, obliq:3.1,
-   periodDays:4331, incl:1.3, ecc:0.049, color:0xc8a07a, key:'5'},
-  {id:'saturn', name:'Saturn', kind:'Planet, gas giant', radiusKm:60268, rotH:10.7, obliq:26.7,
-   periodDays:10747, incl:2.5, ecc:0.052, color:0xd8c08a, key:'6', rings:true},
-  {id:'uranus', name:'Uranus', kind:'Planet, ice giant', radiusKm:25559, rotH:17.2, retro:true, obliq:97.8,
-   periodDays:30589, incl:0.8, ecc:0.047, color:0x98d6e0, key:'7'},
-  {id:'neptune', name:'Neptune', kind:'Planet, ice giant', radiusKm:24764, rotH:16.1, obliq:28.3,
-   periodDays:59800, incl:1.8, ecc:0.010, color:0x3a5fd0, key:'8'},
-  {id:'moon', name:'Moon', kind:'Moon of Earth', radiusKm:1737.5, rotH:655.7, lockNote:'locked to Earth',
-   obliq:6.7, periodDays:27.3, incl:5.1, ecc:0.055, color:0xaaaaaa, key:'9', distNote:'about 384,000 km from Earth'}
-];
-var byId = {};
-BODIES.forEach(function(b){ byId[b.id] = b; });
-BODIES.forEach(function(b){ if (O.ELEMENTS[b.id]) b.el = O.ELEMENTS[b.id]; });
-var PLANETS = BODIES.filter(function(b){ return b.el; });
+function solarDef(){
+  var bodies = [
+    {id:'sun', name:'Sun', kind:'Star', isStar:true, radiusKm:695700, diameter:'1,391,400 km', rotH:609.12,
+     rotNote:'at 16° latitude', obliq:7.25, color:0xffb040, key:null, gen:{type:'sol', id:'sun'},
+     glowInner:'rgba(255,236,190,1)', glowOuter:'rgba(255,170,60,0.55)', lightColor:0xfff2dc, primary:true},
+    {id:'mercury', name:'Mercury', kind:'Planet, rocky', radiusKm:2439.5, rotH:1407.6, obliq:0.034,
+     periodDays:88.0, incl:7.0, ecc:0.206, color:0x9a8f84, key:'1', gen:{type:'sol', id:'mercury'}},
+    {id:'venus', name:'Venus', kind:'Planet, rocky', radiusKm:6052, rotH:5832.5, retro:true, obliq:177.4,
+     periodDays:224.7, incl:3.4, ecc:0.007, color:0xe0c690, key:'2', gen:{type:'sol', id:'venus'}},
+    {id:'earth', name:'Earth', kind:'Planet, rocky', radiusKm:6378, rotH:23.9, obliq:23.4,
+     periodDays:365.2, incl:0.0, ecc:0.017, color:0x3a74b8, key:'3', gen:{type:'sol', id:'earth'}},
+    {id:'mars', name:'Mars', kind:'Planet, rocky', radiusKm:3396, rotH:24.6, obliq:25.2,
+     periodDays:687.0, incl:1.8, ecc:0.094, color:0xb4623a, key:'4', gen:{type:'sol', id:'mars'}},
+    {id:'jupiter', name:'Jupiter', kind:'Planet, gas giant', radiusKm:71492, rotH:9.9, obliq:3.1,
+     periodDays:4331, incl:1.3, ecc:0.049, color:0xc8a07a, key:'5', gen:{type:'sol', id:'jupiter'}},
+    {id:'saturn', name:'Saturn', kind:'Planet, gas giant', radiusKm:60268, rotH:10.7, obliq:26.7,
+     periodDays:10747, incl:2.5, ecc:0.052, color:0xd8c08a, key:'6', rings:true, gen:{type:'sol', id:'saturn'}},
+    {id:'uranus', name:'Uranus', kind:'Planet, ice giant', radiusKm:25559, rotH:17.2, retro:true, obliq:97.8,
+     periodDays:30589, incl:0.8, ecc:0.047, color:0x98d6e0, key:'7', gen:{type:'sol', id:'uranus'}},
+    {id:'neptune', name:'Neptune', kind:'Planet, ice giant', radiusKm:24764, rotH:16.1, obliq:28.3,
+     periodDays:59800, incl:1.8, ecc:0.010, color:0x3a5fd0, key:'8', gen:{type:'sol', id:'neptune'}},
+    {id:'moon', name:'Moon', kind:'Moon of Earth', isMoon:true, parent:'earth', radiusKm:1737.5, rotH:655.7, lockNote:'locked to Earth',
+     obliq:6.7, periodDays:27.3, incl:5.145, ecc:0.055, color:0xaaaaaa, key:'9', gen:{type:'sol', id:'moon'},
+     moon:{aKm:384400, real:true}}
+  ];
+  bodies.forEach(function(b){ if (O.ELEMENTS[b.id]) b.el = O.ELEMENTS[b.id]; });
+  var nep = O.ELEMENTS.neptune;
+  return {
+    mode:'sol', name:'Solar System', bodies:bodies, unit:1, L:1, epochJd:null,
+    hz:SYS.hzBounds(5772, 1), frost:SYS.frostLine(1), maxA:nep.a[0] * (1 + nep.e[0]),
+    order:['sun', 'jupiter', 'saturn', 'earth', 'mars', 'venus', 'mercury', 'uranus', 'neptune', 'moon'],
+    homeId:null, notes:[], belts:[{a:2.7, halfWidth:0.5, icy:false, periodDays:Math.sqrt(Math.pow(2.7, 3)) * 365.25, phase0:1.1, seed:77, label:'Main asteroid belt', spread:0.18}], binary:null
+  };
+}
+
+var BODIES = [], byId = {}, PLANETS = [], MOONS = [];
+var sys = null;        // the system on screen right now
 
 var SPEEDS = [
   {days:1 / 86400, label:'Real time'},
@@ -81,20 +99,21 @@ var moonElongation = O.moonElongation, moonDirEcl = O.moonDirEcl;
 var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 var state = {
   jd: jdFromDate(new Date()), speedIdx: 3, paused: !!reducedMotion, dir: 1,
-  trueDist: false, trueSize: false, orbits: true, labels: true, stars: true,
+  trueDist: false, trueSize: false, orbits: true, labels: true, stars: true, zone: true,
   focus: 'sun', overview: true
 };
 (function loadView(){
   try{
     var v = JSON.parse(localStorage.getItem('solarify.view') || '{}');
-    ['trueDist','trueSize','orbits','labels','stars'].forEach(function(k){ if (typeof v[k] === 'boolean') state[k] = v[k]; });
+    ['trueDist','trueSize','orbits','labels','stars','zone'].forEach(function(k){ if (typeof v[k] === 'boolean') state[k] = v[k]; });
     if (typeof v.speedIdx === 'number' && v.speedIdx >= 0 && v.speedIdx < SPEEDS.length) state.speedIdx = Math.round(v.speedIdx);
   }catch(e){}
 })();
+var solarSpeedIdx = state.speedIdx;     // remembered separately so a built system doesn't overwrite it
 function saveView(){
   try{
     localStorage.setItem('solarify.view', JSON.stringify({trueDist:state.trueDist, trueSize:state.trueSize,
-      orbits:state.orbits, labels:state.labels, stars:state.stars, speedIdx:state.speedIdx}));
+      orbits:state.orbits, labels:state.labels, stars:state.stars, zone:state.zone, speedIdx:solarSpeedIdx}));
   }catch(e){}
 }
 
@@ -120,8 +139,6 @@ var camera = new THREE.PerspectiveCamera(45, 1, 1e-5, 1e5);
 var universe = new THREE.Group();     // everything lives in here; it is moved so the focus sits at the origin
 scene.add(universe);
 
-var sunLight = new THREE.PointLight(0xfff2dc, 2.2, 0);
-universe.add(sunLight);
 universe.add(new THREE.AmbientLight(0x2a3550, 0.55));
 
 var stars = (function(){
@@ -333,34 +350,176 @@ function dotTexture(){
   return new THREE.CanvasTexture(cv);
 }
 
-/* ------------------------------------------------------------------
-   6. Bodies, orbit lines, labels
------------------------------------------------------------------- */
-var dotTex = dotTexture(), glowTex = glowTexture('rgba(255,236,190,1)', 'rgba(255,170,60,0.55)');
-var labelsEl = $('labels');
-var tmpV = new THREE.Vector3(), tmpEcl = {x:0, y:0, z:0};
+/* ---- generators for built systems. Each takes the small spec system.js makes (a seed and a couple of 0-1 knobs). ---- */
+function ridge(n){ return 1 - Math.abs(2 * n - 1); }       // 1 along the 'creases' of a noise field, 0 away from them
+function terranWorld(seed, thr, dry, cloudAmt){
+  return function(W, H){
+    return paintJob(W, H, seed, function(N, x, y, z, lat, o){
+      var h = N.fbm(x * 2.0 + 3, y * 2.0, z * 2.0, 6), r, g, b;
+      if (h > thr){
+        var e = clamp((h - thr) * 4, 0, 1), dr = N.fbm(x * 3 + 9, y * 3, z * 3 + 4, 4);
+        var t = clamp(dr * 0.75 + e * 0.5 + dry, 0, 1);
+        r = mix(64, 128, t); g = mix(122, 110, t); b = mix(54, 74, t);
+        if (e > 0.88){ r = g = b = mix(150, 235, (e - 0.88) / 0.12); }
+      } else {
+        var dpt = clamp((thr - h) * 3.2, 0, 1);
+        r = mix(48, 8, dpt); g = mix(112, 38, dpt); b = mix(176, 100, dpt);
+      }
+      var alat = Math.abs(lat) + (N.n3(x * 7, y * 7, z * 7) - 0.5) * 0.28, ice = smooth(1.14, 1.30, alat);
+      r = mix(r, 238, ice); g = mix(g, 244, ice); b = mix(b, 250, ice);
+      var c = N.fbm(x * 3.1 + 20, y * 5.2, z * 3.1, 5), ca = smooth(0.54, 0.80, c) * cloudAmt;
+      o[0] = mix(r, 255, ca); o[1] = mix(g, 255, ca); o[2] = mix(b, 255, ca);
+    });
+  };
+}
+function desertWorld(seed, base, dark){
+  return function(W, H){
+    return paintJob(W, H, seed, function(N, x, y, z, lat, o){
+      var a = N.fbm(x * 2.4, y * 2.4, z * 2.4, 5), d = smooth(0.52, 0.62, N.fbm(x * 1.7 + 6, y * 1.7, z * 1.7, 4));
+      var r = mix(base[0], base[0] * 0.78, a), g = mix(base[1], base[1] * 0.7, a), b = mix(base[2], base[2] * 0.7, a);
+      r = mix(r, dark[0], d * 0.8); g = mix(g, dark[1], d * 0.8); b = mix(b, dark[2], d * 0.8);
+      var cap = smooth(1.38, 1.46, Math.abs(lat) + (N.n3(x * 8, y * 8, z * 8) - 0.5) * 0.1);
+      o[0] = mix(r, 240, cap * 0.8); o[1] = mix(g, 240, cap * 0.8); o[2] = mix(b, 245, cap * 0.8);
+    });
+  };
+}
+function iceWorld(seed, bright){
+  return function(W, H){
+    return paintJob(W, H, seed, function(N, x, y, z, lat, o){
+      var v = N.fbm(x * 3, y * 3, z * 3, 5), crack = smooth(0.90, 0.97, ridge(N.fbm(x * 2.2 + 4, y * 2.2, z * 2.2, 3)));
+      var k = bright * (0.82 + 0.18 * v);
+      o[0] = mix(205 * k, 110, crack * 0.8); o[1] = mix(226 * k, 150, crack * 0.8); o[2] = mix(240 * k, 196, crack * 0.8);
+    }, function(t){ craters(t, 90, 17, 0.5); });
+  };
+}
+function lavaWorld(seed){
+  return function(W, H){
+    return paintJob(W, H, seed, function(N, x, y, z, lat, o){
+      var c = N.fbm(x * 3, y * 3, z * 3, 5), crust = 24 + 46 * c;
+      var glow = smooth(0.86, 0.96, ridge(N.fbm(x * 2.6 + 8, y * 2.6, z * 2.6, 4)));
+      o[0] = mix(crust, 255, glow); o[1] = mix(crust * 0.55, 80 + 50 * glow, glow); o[2] = mix(crust * 0.45, 14, glow);
+    });
+  };
+}
+function cloudWorld(seed, pal){
+  return function(W, H){
+    return paintJob(W, H, seed, function(N, x, y, z, lat, o){
+      var wx = N.fbm(x * 1.6, y * 3.2, z * 1.6, 3), v = N.fbm(x * 2 + wx * 1.4, y * 5 + wx, z * 2 + wx * 1.4, 5);
+      o[0] = mix(pal[0][0], pal[1][0], v); o[1] = mix(pal[0][1], pal[1][1], v); o[2] = mix(pal[0][2], pal[1][2], v);
+    });
+  };
+}
+function starSurface(tint, seed){
+  return function(W, H){
+    return paintJob(W, H, seed, function(N, x, y, z, lat, o){
+      var g = N.fbm(x * 7, y * 7, z * 7, 5), t = Math.pow(g, 1.4), k = 0.7 + 0.4 * t, w = t * t * 0.35;   // keeps the star's own hue, hot cells drift toward white
+      o[0] = Math.min(255, tint[0] * k + (255 - tint[0]) * w); o[1] = Math.min(255, tint[1] * k + (255 - tint[1]) * w); o[2] = Math.min(255, tint[2] * k + (255 - tint[2]) * w);
+    });
+  };
+}
+function hadeanWorld(seed){
+  return function(W, H){
+    return paintJob(W, H, seed, function(N, x, y, z, lat, o){
+      var g = N.fbm(x * 3.5, y * 3.5, z * 3.5, 6), v = 0.28 + 0.32 * g, frost = smooth(0.6, 0.75, N.fbm(x * 2 + 3, y * 2, z * 2, 4));
+      o[0] = mix(v * 150, 214, frost * 0.7); o[1] = mix(v * 160, 224, frost * 0.7); o[2] = mix(v * 185, 236, frost * 0.7);
+    }, function(t){ craters(t, 260, 29, 0.7); });
+  };
+}
+function ammoniaWorld(seed){
+  return function(W, H){
+    return paintJob(W, H, seed, function(N, x, y, z, lat, o){
+      var wx = N.fbm(x * 1.4, y * 2.8, z * 1.4, 3), v = N.fbm(x * 2.2 + wx, y * 3.5 + wx, z * 2.2 + wx, 5);
+      o[0] = mix(150, 214, v); o[1] = mix(172, 226, v); o[2] = mix(118, 170, v);        // pale green-yellow haze over an icy surface
+    });
+  };
+}
+function sulfurWorld(seed){
+  return function(W, H){
+    return paintJob(W, H, seed, function(N, x, y, z, lat, o){
+      var v = N.fbm(x * 3, y * 3, z * 3, 5), spot = smooth(0.62, 0.74, N.fbm(x * 5 + 7, y * 5, z * 5, 3));
+      o[0] = mix(226, 255, v * 0.6) * (1 - 0.6 * spot); o[1] = mix(190, 230, v) * (1 - 0.7 * spot); o[2] = mix(40, 110, v * v) * (1 - 0.8 * spot);
+    });
+  };
+}
+var GAS_PAL = [[[236, 212, 176], [168, 112, 72]], [[230, 210, 158], [188, 160, 112]], [[205, 190, 225], [130, 108, 160]],
+               [[225, 150, 120], [150, 70, 60]], [[190, 215, 215], [96, 140, 150]], [[232, 226, 196], [170, 160, 120]]];
+var DESERT_BASES = [[[214, 170, 110], [120, 84, 52]], [[190, 108, 66], [92, 56, 42]], [[226, 196, 130], [150, 118, 76]], [[170, 96, 64], [76, 46, 36]]];
+var CLOUD_PALS = [[[214, 206, 196], [170, 160, 150]], [[236, 190, 130], [196, 130, 76]], [[236, 212, 158], [205, 168, 108]]];
+var ROCK_BASES = [[190, 178, 166], [176, 160, 140], [160, 156, 150], [200, 190, 170]];
 
-BODIES.forEach(function(b){
+// Turns the spec on a body into a function (width, height) > paint job.
+function genFor(b){
+  var g = b.gen; if (!g) return null;
+  var v1 = g.v1 == null ? 0.5 : g.v1, v2 = g.v2 == null ? 0.5 : g.v2, pick = function(arr, v){ return arr[Math.min(arr.length - 1, Math.floor(v * arr.length))]; };
+  switch (g.type){
+    case 'sol': return GEN[g.id];
+    case 'star': return starSurface(g.tint, g.seed);
+    case 'terran': return terranWorld(g.seed, 0.46 + v1 * 0.10, (v2 - 0.5) * 0.5, 0.55 + 0.25 * v2);
+    case 'ocean': return terranWorld(g.seed, 0.60 + v1 * 0.08, 0, 0.8);
+    case 'desert': var d = pick(DESERT_BASES, v1); return desertWorld(g.seed, d[0], d[1]);
+    case 'barren': return GEN.rock(pick(ROCK_BASES, v1), g.seed, v2 > 0.5, 220 + Math.floor(v2 * 200));
+    case 'ice': return iceWorld(g.seed, 0.9 + 0.1 * v1);
+    case 'lava': return lavaWorld(g.seed);
+    case 'hadean': return hadeanWorld(g.seed);
+    case 'ammonia': return ammoniaWorld(g.seed);
+    case 'sulfur': return sulfurWorld(g.seed);
+    case 'cloudy': return cloudWorld(g.seed, pick(CLOUD_PALS, v1));
+    case 'gasGiant': return GEN.gasGiant(GAS_PAL[g.pal % GAS_PAL.length], g.seed, g.bands, g.spot);
+    case 'iceGiant': return GEN.iceGiant(g.base, g.seed, g.cloudy);
+    case 'rockMoon': return GEN.rock(pick(ROCK_BASES, v1), g.seed, v1 > 0.5, 200);
+    case 'iceMoon': return iceWorld(g.seed, 0.85 + 0.15 * v1);
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------
+   6. Bodies, orbit lines, labels. A system is a list of plain data objects; this part
+   gives each one a mesh, a label and (if it moves) an orbit line, and takes them all
+   away again when you switch system.
+------------------------------------------------------------------ */
+var dotTex = dotTexture(), labelsEl = $('labels');
+var homeTex = (function(){
+  var cv = document.createElement('canvas'); cv.width = cv.height = 96;
+  var ctx = cv.getContext('2d'); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.arc(48, 48, 38, 0, TAU); ctx.stroke();
+  ctx.lineWidth = 4; [[48, 2, 48, 16], [48, 80, 48, 94], [2, 48, 16, 48], [80, 48, 94, 48]].forEach(function(l){
+    ctx.beginPath(); ctx.moveTo(l[0], l[1]); ctx.lineTo(l[2], l[3]); ctx.stroke();
+  });
+  return new THREE.CanvasTexture(cv);
+})();
+var tmpV = new THREE.Vector3(), tmpEcl = {x:0, y:0, z:0};
+var SPH_HI = new THREE.SphereGeometry(1, 64, 48), SPH_LO = new THREE.SphereGeometry(1, 32, 24);
+var zoneGroup = new THREE.Group(); universe.add(zoneGroup);
+
+function rgbCss(c, a){ return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+function createBody(b){
   b.group = new THREE.Group();
   b.tilt = new THREE.Group();
-  b.tilt.rotation.x = -(b.id === 'moon' ? 0 : b.obliq) * DEG;      // pole leans toward ecliptic longitude 90 degrees
+  b.tilt.rotation.x = -(b.isMoon ? 0 : b.obliq) * DEG;      // pole leans toward ecliptic longitude 90 degrees
   b.group.add(b.tilt);
-  var geo = new THREE.SphereGeometry(1, 64, 48);
-  b.material = b.id === 'sun'
+  b.material = b.isStar
     ? new THREE.MeshBasicMaterial({color:b.color})
     : new THREE.MeshStandardMaterial({color:b.color, roughness:0.95, metalness:0});
-  b.mesh = new THREE.Mesh(geo, b.material);
+  b.mesh = new THREE.Mesh(b.isMoon ? SPH_LO : SPH_HI, b.material);
   b.tilt.add(b.mesh);
   b.spin = Math.random() * TAU;
-  b.customTex = null; b.builtTex = null; b.builtImage = null;
+  b.customTex = null; b.builtTex = null; b.texSize = 0;
+  b.genFn = genFor(b);
 
-  b.marker = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:b.id === 'sun' ? 0xffd080 : b.color, sizeAttenuation:false, depthTest:false, transparent:true}));
-  b.marker.scale.setScalar(0.011); b.marker.renderOrder = 5; b.marker.visible = false;
+  b.marker = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:b.isStar ? 0xffd080 : b.color, sizeAttenuation:false, depthTest:false, transparent:true}));
+  b.marker.scale.setScalar(b.isMoon && !b.moon.real ? 0.007 : 0.011); b.marker.renderOrder = 5; b.marker.visible = false;
+  if (b.isMoon && !b.moon.real) b.marker.material.opacity = 0.75;
   b.group.add(b.marker);
 
-  if (b.id === 'sun'){
-    b.glow = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true}));
+  if (b.isStar){
+    var tint = b.tint || [255, 236, 190];
+    b.glowTex = glowTexture(b.glowInner || rgbCss(tint.map(function(v){ return Math.min(255, v + 25); }), 1), b.glowOuter || rgbCss(tint, 0.55));
+    b.glow = new THREE.Sprite(new THREE.SpriteMaterial({map:b.glowTex, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true}));
     b.group.add(b.glow);
+    // every star lights the scene from where it is
+    var lc = b.lightColor != null ? b.lightColor : new THREE.Color(tint[0] / 255, tint[1] / 255, tint[2] / 255).lerp(new THREE.Color(1, 1, 1), 0.55).getHex();
+    b.light = new THREE.PointLight(lc, b.companion ? 1.6 : 2.2, 0);
+    b.group.add(b.light);
   }
   if (b.rings){
     var rg = new THREE.RingGeometry(1.24, 2.27, 160, 1), pos = rg.attributes.position, uv = rg.attributes.uv;
@@ -372,45 +531,68 @@ BODIES.forEach(function(b){
     b.ringMesh.rotation.x = -Math.PI / 2;
     b.tilt.add(b.ringMesh);
   }
+  if (b.home){
+    b.homeMark = new THREE.Sprite(new THREE.SpriteMaterial({map:homeTex, color:0xC89B4A, sizeAttenuation:false, depthTest:false, transparent:true}));
+    b.homeMark.scale.setScalar(0.05); b.homeMark.renderOrder = 6; b.homeMark.visible = false;
+    b.group.add(b.homeMark);
+  }
   universe.add(b.group);
 
   b.label = document.createElement('button');
-  b.label.className = 'label'; b.label.textContent = b.name; b.label.tabIndex = -1;
+  b.label.className = 'label'; b.label.textContent = b.name + (b.home ? ' (Home)' : ''); b.label.tabIndex = -1;
   b.label.setAttribute('aria-hidden', 'true');
   b.label.addEventListener('click', function(){ focusOn(b.id); });
   labelsEl.appendChild(b.label);
+  b.labelW = 0;
 
   if (b.el){
     b.orbitLine = new THREE.LineLoop(new THREE.BufferGeometry(),
-      new THREE.LineBasicMaterial({color:0x7fa8c8, transparent:true, opacity:0.42, depthWrite:false}));
+      new THREE.LineBasicMaterial({color:b.home ? 0xC89B4A : b.isStar ? 0xE8B04A : 0x7fa8c8, transparent:true, opacity:b.home ? 0.7 : b.isStar ? 0.55 : 0.42, depthWrite:false}));
     b.orbitLine.frustumCulled = false;
     universe.add(b.orbitLine);
     b.orbitBuiltT = 1e9;
   }
-});
-var moonOrbitLine = (function(){
-  var pts = new Float32Array(121 * 3), v = {x:0, y:0, z:0};
-  for (var i = 0; i <= 120; i++){
-    moonDirEcl(i / 120 * TAU, v);
-    pts[i*3] = v.x; pts[i*3+1] = v.z; pts[i*3+2] = -v.y;
+  if (b.isMoon){
+    var pts = new Float32Array(121 * 3), v = {x:0, y:0, z:0}, inc = b.incl * DEG;
+    for (var k = 0; k <= 120; k++){
+      moonDirEcl(k / 120 * TAU, v, inc);
+      pts[k*3] = v.x; pts[k*3+1] = v.z; pts[k*3+2] = -v.y;
+    }
+    var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+    b.orbitLine = new THREE.Line(g, new THREE.LineBasicMaterial({color:0x9aa0aa, transparent:true, opacity:0.34, depthWrite:false}));
+    b.orbitLine.frustumCulled = false; universe.add(b.orbitLine);
   }
-  var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
-  var l = new THREE.Line(g, new THREE.LineBasicMaterial({color:0x9aa0aa, transparent:true, opacity:0.5, depthWrite:false}));
-  l.frustumCulled = false; universe.add(l); return l;
-})();
+}
+function destroyBody(b){
+  universe.remove(b.group);
+  [b.material, b.marker && b.marker.material, b.glow && b.glow.material, b.homeMark && b.homeMark.material].forEach(function(m){ if (m) m.dispose(); });
+  if (b.glowTex) b.glowTex.dispose();
+  if (b.builtTex) b.builtTex.dispose();
+  if (b.customTex) b.customTex.dispose();
+  if (b.ringMesh){ b.ringMesh.geometry.dispose(); b.ringMesh.material.map.dispose(); b.ringMesh.material.dispose(); }
+  if (b.orbitLine){ universe.remove(b.orbitLine); b.orbitLine.geometry.dispose(); b.orbitLine.material.dispose(); }
+  if (b.label && b.label.parentNode) b.label.parentNode.removeChild(b.label);
+}
+function teardownSystem(){
+  BODIES.forEach(destroyBody);
+  BODIES = []; PLANETS = []; MOONS = []; byId = {};
+  texQueue = []; texJob = null; texJobItem = null;
+  clearBelts();
+  while (zoneGroup.children.length){
+    var c = zoneGroup.children[0]; zoneGroup.remove(c); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose();
+  }
+}
 
-/* Texture queue. Every body gets a small 512 px texture quickly (enough for the overview,
-   where planets are a few dozen pixels wide). The sharp 1024 px version is only made for a
+/* Texture queue. Every body gets a small texture quickly (enough for the overview, where
+   planets are a few dozen pixels wide). The sharp 1024 px version is only made for a
    body you actually select, and it jumps the queue. Painting is sliced across frames. */
-var texQueue = ['earth', 'sun', 'jupiter', 'saturn', 'mars', 'moon', 'venus', 'mercury', 'uranus', 'neptune']
-  .map(function(id){ return {id:id, size:512}; });
-var GEN_IDS = {sun:GEN.sun, earth:GEN.earth, mars:GEN.mars, venus:GEN.venus, jupiter:GEN.jupiter, saturn:GEN.saturn,
-               uranus:GEN.uranus, neptune:GEN.neptune, mercury:GEN.mercury, moon:GEN.moon};
-var texJob = null, texJobItem = null;
+var texQueue = [], texJob = null, texJobItem = null;
 function pumpTextures(){
   if (!texJob){
     var it = texQueue.shift(); if (!it) return;
-    texJobItem = it; texJob = GEN_IDS[it.id](it.size, it.size / 2);
+    var tb = byId[it.id];
+    if (!tb || !tb.genFn) return;
+    texJobItem = it; texJob = tb.genFn(it.size, it.size / 2);
   }
   if (!texJob.run(performance.now() + 6)) return;       // a few ms a frame, then let the page breathe
   var b = byId[texJobItem.id], tex = new THREE.CanvasTexture(texJob.canvas);
@@ -422,6 +604,7 @@ function pumpTextures(){
 }
 function prioritiseTexture(id, close){
   var b = byId[id], items = [];
+  if (!b || !b.genFn) return;
   var li = -1; texQueue.forEach(function(it, i){ if (it.id === id && it.size < 1024) li = i; });
   if (li >= 0) items.push(texQueue.splice(li, 1)[0]);                 // its small one first
   var wantsSharp = close && (b.texSize || 0) < 1024 && !texQueue.some(function(it){ return it.id === id && it.size >= 1024; })
@@ -429,24 +612,43 @@ function prioritiseTexture(id, close){
   if (wantsSharp) items.push({id:id, size:1024});
   Array.prototype.unshift.apply(texQueue, items);
 }
+function queueTextures(){
+  if (sys.mode === 'sol'){
+    texQueue = ['earth', 'sun', 'jupiter', 'saturn', 'mars', 'moon', 'venus', 'mercury', 'uranus', 'neptune'].map(function(id){ return {id:id, size:512}; });
+    return;
+  }
+  texQueue = [];
+  sys.order.forEach(function(id){ if (!byId[id].isMoon) texQueue.push({id:id, size:512}); });
+  sys.order.forEach(function(id){ if (byId[id].isMoon) texQueue.push({id:id, size:256}); });
+}
 
 /* ------------------------------------------------------------------
-   7. Scale: where bodies are drawn, and how big
+   7. Scale: where bodies are drawn, and how big. 'unit' is the distance (in AU) that
+   gets the same scene length our Earth does: 1 AU for the Sun, and for a built system
+   the distance at which a planet gets as much light as Earth does (the square root of
+   the star's luminosity). That keeps a red dwarf's tiny system from collapsing into the star.
 ------------------------------------------------------------------ */
+function sceneDist(rAU){
+  return state.trueDist ? rAU * SCENE_AU_TRUE / sys.unit : SQUEEZE_K * Math.sqrt(rAU / sys.unit);
+}
 function viewPos(p, out){
   var r = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
-  var s = state.trueDist ? SCENE_AU_TRUE : (r > 0 ? SQUEEZE_K * Math.sqrt(r) / r : 0);
+  var s = r > 0 ? sceneDist(r) / r : 0;
   return out.set(p.x * s, p.z * s, -p.y * s);          // ecliptic z is up; three's y is up
 }
 function bodyRadius(b){
-  if (state.trueSize) return b.radiusKm / AU_KM * SCENE_AU_TRUE;
-  return 0.5 * Math.pow(b.radiusKm / 6378, 0.4);
+  var r = state.trueSize ? b.radiusKm / AU_KM * SCENE_AU_TRUE / sys.unit : 0.5 * Math.pow(b.radiusKm / 6378, 0.4);
+  if (b.isStar && sys.mode === 'custom'){          // keep a puffed-up star off its closest planet, and off its companion
+    if (sys.innerA) r = Math.min(r, 0.55 * sceneDist(sys.innerA));
+    if (sys.binary) r = Math.min(r, 0.3 * sceneDist(sys.binary.min * 0.5));
+  }
+  return r;
 }
-function moonDistScene(){ return state.trueSize ? 384400 / AU_KM * SCENE_AU_TRUE : 1.7; }
-function overviewRadius(){
-  var n = byId.neptune, a = n.el.a[0] * (1 + n.el.e[0]);
-  return state.trueDist ? SCENE_AU_TRUE * a : SQUEEZE_K * Math.sqrt(a);
+function moonDistScene(m){
+  if (state.trueSize) return m.moon.aKm / AU_KM * SCENE_AU_TRUE / sys.unit;
+  return bodyRadius(m.parentBody) * (3.4 + 1.8 * m.parentBody.moonBodies.indexOf(m));
 }
+function overviewRadius(){ return sceneDist(sys.maxA); }
 
 var camera3 = {theta:0.6, phi:0.5, dist:100, targetDist:100};
 var focusView = new THREE.Vector3(), focusOffset = new THREE.Vector3();
@@ -463,9 +665,9 @@ function overviewDist(){
 }
 function defaultDist(b){
   var R = bodyRadius(b);
-  if (b.id === 'sun') return R * 4;
-  if (b.id === 'earth' && !state.trueSize) return Math.max(R * 4, moonDistScene() * 2.5);
-  if (b.id === 'moon') return R * 5;
+  if (b.isStar) return R * 4;
+  if (b.isMoon) return R * 5;
+  if (b.moonBodies && b.moonBodies.length && !state.trueSize) return Math.min(Math.max(R * 4, moonDistScene(b.moonBodies[0]) * 2.5), R * 14);
   return R * 4;
 }
 function limitDist(d){
@@ -476,44 +678,57 @@ function limitDist(d){
 /* ------------------------------------------------------------------
    8. Per-frame update
 ------------------------------------------------------------------ */
-var plan = {};     // heliocentric positions (AU, ecliptic) this frame
+var plan = {};     // positions (AU, ecliptic, relative to the star) this frame
 function updateBodies(dt){
   var T = centuries(state.jd);
   PLANETS.forEach(function(b){ plan[b.id] = heliocentric(b.el, T, plan[b.id] || {x:0, y:0, z:0}); });
-  plan.sun = {x:0, y:0, z:0};
+  if (!byId.sun.el) plan.sun = {x:0, y:0, z:0};
 
   BODIES.forEach(function(b){
     var R = bodyRadius(b); b.R = R;
     b.mesh.scale.setScalar(R);
     if (b.ringMesh) b.ringMesh.scale.setScalar(R);
-    if (b.id === 'sun') b.group.position.set(0, 0, 0);
-    else if (b.el) viewPos(plan[b.id], b.group.position);
+    if (b.el) viewPos(plan[b.id], b.group.position);
+    else if (b.isStar) b.group.position.set(0, 0, 0);
   });
-  // The Moon: mean phase, circular orbit. Not an ephemeris.
-  var e = plan.earth, earthG = byId.earth.group, moon = byId.moon;
-  var lamSun = Math.atan2(-e.y, -e.x), lamMoon = lamSun + moonElongation(state.jd);
-  moonDirEcl(lamMoon, tmpEcl);
-  var md = moonDistScene();
-  moon.group.position.set(earthG.position.x + tmpEcl.x * md, earthG.position.y + tmpEcl.z * md, earthG.position.z - tmpEcl.y * md);
-  moonOrbitLine.position.copy(earthG.position);
-  moonOrbitLine.scale.setScalar(md);
-  // tidal lock: the map centre faces the Earth
-  var dx = earthG.position.x - moon.group.position.x, dz = earthG.position.z - moon.group.position.z;
-  moon.mesh.rotation.y = Math.atan2(-dz, dx);
-
-  // spin, capped so planets don't strobe at high speed
+  // Moons. Ours uses the mean phase on a circular orbit (not an ephemeris); a built system's
+  // moons are plain circles. Either way they are assumed tidally locked.
+  MOONS.forEach(function(m){
+    var pg = m.parentBody.group.position, md = moonDistScene(m), lam;
+    if (m.moon.real){
+      var e = plan[m.parentBody.id];
+      lam = Math.atan2(-e.y, -e.x) + moonElongation(state.jd);
+    } else {
+      lam = m.moon.phase0 + TAU * (state.jd - sys.epochJd) / m.periodDays;
+    }
+    moonDirEcl(lam, tmpEcl, m.incl * DEG);
+    m.group.position.set(pg.x + tmpEcl.x * md, pg.y + tmpEcl.z * md, pg.z - tmpEcl.y * md);
+    m.orbitLine.position.copy(pg);
+    m.orbitLine.scale.setScalar(md);
+    var dx = pg.x - m.group.position.x, dz = pg.z - m.group.position.z;
+    m.mesh.rotation.y = Math.atan2(-dz, dx);
+  });
+  // spin, capped so planets don't strobe at high speed. Anything locked just keeps one face to what it orbits.
   var daysPerSec = state.paused ? 0 : SPEEDS[state.speedIdx].days;
   BODIES.forEach(function(b){
-    if (b.id === 'moon' || !b.rotH) return;
+    if (b.isMoon || !b.rotH) return;
+    if (b.lockTo){
+      var sp = byId[b.lockTo].group.position, ddx = sp.x - b.group.position.x, ddz = sp.z - b.group.position.z;
+      b.mesh.rotation.y = Math.atan2(-ddz, ddx); return;
+    }
     var cyc = daysPerSec * 24 / b.rotH;
     b.spin += state.dir * Math.min(cyc, 0.35) * TAU * dt;
     b.mesh.rotation.y = b.spin;
   });
-  // orbit lines: rebuild when the date has moved on enough or the scale changed
+  // orbit lines: our own planets creep, so rebuild when the date has moved on enough or the scale changed;
+  // a built system's orbits never change shape, so they are only redrawn when the scale does.
   if (state.orbits){
-    PLANETS.forEach(function(b){ if (Math.abs(T - b.orbitBuiltT) > 0.05) buildOrbit(b, T); });
+    PLANETS.forEach(function(b){
+      if (sys.mode === 'custom' ? b.orbitBuiltT === 1e9 : Math.abs(T - b.orbitBuiltT) > 0.05) buildOrbit(b, T);
+    });
   }
-  byId.sun.glow.scale.setScalar(Math.max(byId.sun.R * 5.5, 0));
+  sys.stars.forEach(function(st){ st.glow.scale.setScalar(Math.max(st.R * 5.5, 0)); });
+  updateBelts();
 }
 function buildOrbit(b, T){
   var s = elementsAt(b.el, T), n = 360, pts = new Float32Array(n * 3), p = {x:0, y:0, z:0};
@@ -531,6 +746,73 @@ function buildOrbit(b, T){
 }
 function rebuildOrbits(){ PLANETS.forEach(function(b){ b.orbitBuiltT = 1e9; }); }
 
+/* Asteroid belts: a ring of points in the orbit plane, turning slowly at the belt's own pace.
+   The particles are cosmetic (placed by a seeded generator); the belt's distance and width are what the system says. */
+var BELTS = [], beltRoot = new THREE.Group(); universe.add(beltRoot);
+var beltTmp = new THREE.Vector3(), beltAU = {x:0, y:0, z:0};
+function beltAngle(bt){ return bt.def.phase0 + TAU * (state.jd - (sys.epochJd != null ? sys.epochJd : 2451545)) / bt.def.periodDays; }
+function clearBelts(){
+  BELTS.forEach(function(bt){ bt.points.geometry.dispose(); bt.points.material.dispose(); if (bt.label.parentNode) bt.label.parentNode.removeChild(bt.label); });
+  while (beltRoot.children.length) beltRoot.remove(beltRoot.children[0]);
+  BELTS = [];
+}
+function makeBelts(){
+  clearBelts();
+  (sys.belts || []).forEach(function(bd){
+    var N = 1500, au = new Float32Array(N * 3), s = bd.seed >>> 0, spread = bd.spread || 0.06;
+    function rnd(){ s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }
+    for (var i = 0; i < N; i++){
+      var r = bd.a + (rnd() * 2 - 1) * bd.halfWidth, th = rnd() * TAU;
+      au[i*3] = r * Math.cos(th); au[i*3+1] = r * Math.sin(th); au[i*3+2] = (rnd() * 2 - 1) * spread * r;
+    }
+    var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+    var pts = new THREE.Points(g, new THREE.PointsMaterial({size:1.7, sizeAttenuation:false, color:bd.icy ? 0xb9c8d4 : 0xb8a58c, transparent:true, opacity:0.8, depthWrite:false}));
+    pts.frustumCulled = false;
+    var grp = new THREE.Group(); grp.add(pts); beltRoot.add(grp);
+    var label = document.createElement('div'); label.className = 'label belt'; label.textContent = bd.label || 'Asteroid belt'; label.setAttribute('aria-hidden', 'true');
+    labelsEl.appendChild(label);
+    BELTS.push({def:bd, au:au, points:pts, group:grp, label:label, labelW:0});
+  });
+  rebuildBelts();
+}
+function rebuildBelts(){
+  BELTS.forEach(function(bt){
+    var pos = bt.points.geometry.attributes.position.array, au = bt.au;
+    for (var i = 0; i < au.length; i += 3){
+      beltAU.x = au[i]; beltAU.y = au[i+1]; beltAU.z = au[i+2]; viewPos(beltAU, tmpV);
+      pos[i] = tmpV.x; pos[i+1] = tmpV.y; pos[i+2] = tmpV.z;
+    }
+    bt.points.geometry.attributes.position.needsUpdate = true;
+  });
+}
+function updateBelts(){ BELTS.forEach(function(bt){ bt.group.rotation.y = beltAngle(bt); bt.group.visible = state.orbits; }); }
+function beltLabelPoint(bt){
+  var th = beltAngle(bt); beltAU.x = bt.def.a * Math.cos(th); beltAU.y = bt.def.a * Math.sin(th); beltAU.z = 0;
+  return viewPos(beltAU, beltTmp);
+}
+
+/* The habitable zone (a green band) and the snow line (dashed), drawn flat in the orbit plane. */
+var zoneMats = [];
+function buildZone(){
+  while (zoneGroup.children.length){
+    var c = zoneGroup.children[0]; zoneGroup.remove(c); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose();
+  }
+  var ri = sceneDist(sys.hz.inner), ro = sceneDist(sys.hz.outer), rf = sceneDist(sys.frost);
+  var band = new THREE.RingGeometry(ri, ro, 180, 1); band.rotateX(-Math.PI / 2);
+  var bm = new THREE.Mesh(band, new THREE.MeshBasicMaterial({color:0x6fa294, transparent:true, opacity:0.17, side:THREE.DoubleSide, depthWrite:false}));
+  bm.renderOrder = -0.5; zoneGroup.add(bm); zoneMats = [bm.material];
+  function circle(r, mat){
+    var pts = new Float32Array(181 * 3);
+    for (var i = 0; i <= 180; i++){ var a = i / 180 * TAU; pts[i*3] = Math.cos(a) * r; pts[i*3+1] = 0; pts[i*3+2] = Math.sin(a) * r; }
+    var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+    var l = new THREE.Line(g, mat); l.frustumCulled = false; if (mat.isLineDashedMaterial) l.computeLineDistances(); return l;
+  }
+  var edge = function(){ var m = new THREE.LineBasicMaterial({color:0x6fa294, transparent:true, opacity:0.55, depthWrite:false}); zoneMats.push(m); return m; };
+  zoneGroup.add(circle(ri, edge())); zoneGroup.add(circle(ro, edge()));
+  zoneGroup.add(circle(rf, new THREE.LineDashedMaterial({color:0xa9c4d8, transparent:true, opacity:0.5, depthWrite:false, dashSize:rf * 0.012, gapSize:rf * 0.012})));
+  zoneGroup.visible = state.zone;
+}
+
 function updateCamera(dt){
   var b = byId[state.focus];
   var target = b.group.position;
@@ -541,6 +823,12 @@ function updateCamera(dt){
   camera3.targetDist = limitDist(camera3.targetDist);
   camera3.dist += (camera3.targetDist - camera3.dist) * (1 - Math.exp(-dt * 7));
   camera3.dist = Math.max(camera3.dist, bodyRadius(b) * 1.2);
+  // The zone is a flat translucent disc, which looks odd slicing through a planet you are studying, so it fades as you close in.
+  if (zoneMats.length){
+    var fade = smooth(0.12, 0.5, camera3.dist / overviewDist());
+    zoneMats[0].opacity = mix(0.02, 0.17, fade);
+    for (var zi = 1; zi < zoneMats.length; zi++) zoneMats[zi].opacity = mix(0.12, 0.55, fade);
+  }
   var cp = Math.cos(camera3.phi);
   camera.position.set(camera3.dist * cp * Math.sin(camera3.theta), camera3.dist * Math.sin(camera3.phi), camera3.dist * cp * Math.cos(camera3.theta));
   camera.lookAt(0, 0, 0);
@@ -575,8 +863,7 @@ function projectToScreen(worldPos, out){
   out.y = (-screenV.y * 0.5 + 0.5) * stage.clientHeight;
   return out;
 }
-var scrA = {x:0, y:0, behind:false}, scrB = {x:0, y:0, behind:false}, wp = new THREE.Vector3();
-var LABEL_PRIORITY = ['sun', 'jupiter', 'saturn', 'earth', 'mars', 'venus', 'mercury', 'uranus', 'neptune', 'moon'];
+var scrA = {x:0, y:0, behind:false}, wp = new THREE.Vector3();
 function updateLabels(){
   var tanHalf = Math.tan(camera.fov * DEG / 2), H = stage.clientHeight;
   camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
@@ -586,16 +873,19 @@ function updateLabels(){
     b.screen = {x:scrA.x, y:scrA.y, behind:scrA.behind};
     var dist = wp.distanceTo(camera.position);
     b.pxRadius = b.R / (dist * tanHalf) * (H / 2);
-    b.marker.visible = b.id !== 'sun' && b.pxRadius < 2.5;
+    b.marker.visible = !b.isStar && b.pxRadius < 2.5;
+    if (b.homeMark) b.homeMark.visible = !scrA.behind && b.pxRadius < 22;
     b.labelShow = state.labels && !scrA.behind && scrA.x > -20 && scrA.x < visible.w && scrA.y > -20 && scrA.y < visible.h + 20;
-    if (b.id === 'moon' && b.labelShow){
-      wp.copy(byId.earth.group.position).add(universe.position); projectToScreen(wp, scrB);
-      if (Math.hypot(scrB.x - scrA.x, scrB.y - scrA.y) < 26) b.labelShow = false;
-    }
+  });
+  // a moon's name would sit on top of its planet's when the two are close on screen
+  MOONS.forEach(function(m){
+    if (!m.labelShow) return;
+    var ps = m.parentBody.screen;
+    if (Math.hypot(ps.x - m.screen.x, ps.y - m.screen.y) < 26) m.labelShow = false;
   });
   // Place labels in priority order (the selected body first) and drop any that would
-  // sit on top of one already placed, so the crowd near the Sun stays readable.
-  var order = [state.focus].concat(LABEL_PRIORITY.filter(function(id){ return id !== state.focus; })), placed = [];
+  // sit on top of one already placed, so the crowd near the star stays readable.
+  var order = [state.focus].concat(sys.order.filter(function(id){ return id !== state.focus; })), placed = [];
   order.forEach(function(id){
     var b = byId[id], el = b.label;
     el.classList.toggle('selected', id === state.focus);
@@ -611,9 +901,22 @@ function updateLabels(){
     placed.push({x:x, y:y, w:w, h:h});
     el.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
   });
-  // the Sun keeps a glow even when true size makes it a speck
-  var sun = byId.sun, sunDist = wp.copy(sun.group.position).add(universe.position).distanceTo(camera.position);
-  sun.glow.scale.setScalar(Math.max(sun.R * 5.5, sunDist * 0.045));
+  BELTS.forEach(function(bt){
+    var p = beltLabelPoint(bt); wp.copy(p).add(universe.position); projectToScreen(wp, scrA);
+    var el = bt.label, w = bt.labelW || (bt.labelW = el.offsetWidth || 110), x = scrA.x + 8, y = scrA.y - 10, ok = state.labels && state.orbits && !scrA.behind && scrA.x > 0 && scrA.x < visible.w && scrA.y > 0 && scrA.y < visible.h;
+    if (ok){
+      if (x + w > visible.w - 6) x = scrA.x - 8 - w;
+      for (var i = 0; i < placed.length; i++){ var q = placed[i]; if (x < q.x + q.w + 3 && x + w + 3 > q.x && y < q.y + 22 && y + 22 > q.y){ ok = false; break; } }
+    }
+    if (!ok){ el.style.transform = 'translate(-9999px,-9999px)'; return; }
+    placed.push({x:x, y:y, w:w, h:20});
+    el.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
+  });
+  // the star keeps a glow even when true size makes it a speck
+  sys.stars.forEach(function(st){
+    var starDist = wp.copy(st.group.position).add(universe.position).distanceTo(camera.position);
+    st.glow.scale.setScalar(Math.max(st.R * 5.5, starDist * 0.045));
+  });
 }
 
 /* ------------------------------------------------------------------
@@ -625,11 +928,12 @@ function focusOn(id, opts){
   var oldFocus = new THREE.Vector3().copy(focusView);
   state.focus = id; state.overview = !!opts.overview;
   prioritiseTexture(id, !opts.overview);
+  if (!opts.overview && b.moonBodies) b.moonBodies.forEach(function(m){ prioritiseTexture(m.id, false); });
   // make sure group positions are current, then slide from the old focus point
   focusOffset.copy(oldFocus).sub(b.group.position);
   camera3.targetDist = opts.overview ? overviewDist() : defaultDist(b);
   if (opts.overview) camera3.phi = 0.5;
-  document.querySelectorAll('#bodyList .btn').forEach(function(btn){ btn.setAttribute('aria-pressed', String(btn.dataset.id === id)); });
+  refreshBodyButtons();
   $('overview').setAttribute('aria-pressed', String(!!opts.overview));
   showSelected(b);
 }
@@ -637,6 +941,8 @@ function applyScaleChange(){
   focusOffset.set(0, 0, 0);
   updateBodies(0);
   rebuildOrbits();
+  buildZone();
+  rebuildBelts();
   var b = byId[state.focus];
   camera3.targetDist = state.overview ? overviewDist() : defaultDist(b);
   camera3.dist = camera3.targetDist;
@@ -648,6 +954,8 @@ function updateScaleHint(){
                         : 'Distances are squeezed so the outer planets fit on screen.');
   t.push(state.trueSize ? 'Sizes are true. Planets are specks, which is accurate and not very helpful, so each gets a marker dot.'
                         : 'Planets are drawn bigger than life so you can see them.');
+  if (sys && sys.mode === 'custom') t.push('Green band: habitable zone. Dashed line: snow line, where giants form.');
+  else t.push('Green band: the Sun\'s habitable zone, by one published model. Dashed line: where water ice can form.');
   $('scaleHint').textContent = t.join(' ');
 }
 
@@ -661,43 +969,146 @@ function fmtLight(sec){
   if (sec < 5400) return Math.floor(sec / 60) + ' min ' + Math.round(sec % 60) + ' s';
   return Math.floor(sec / 3600) + ' h ' + Math.round((sec % 3600) / 60) + ' min';
 }
+function fmtMass(me){ return me >= 100 ? fmtNum(me / 317.83, 2) + ' Jupiter masses' : fmtNum(me, me < 10 ? 2 : 1) + ' Earth masses'; }
+function fmtGyr(g){ return g < 1 ? fmtNum(g * 1000, 0) + ' million years' : fmtNum(g, 1) + ' billion years'; }
+function zoneText(a){
+  var z = SYS.zoneOf(a, sys.hz);
+  return z === 'in' ? 'Inside the zone' : z === 'inside' ? 'Closer in than the zone (too hot, by this model)' : 'Further out than the zone (too cold, by this model)';
+}
 var liveEls = {};
+function kc(k){ return fmtNum(k) + ' K (' + fmtNum(k - 273.15) + ' °C)'; }
 function showSelected(b){
-  $('selName').textContent = b.name; $('selKind').textContent = b.kind;
+  var custom = sys.mode === 'custom', primary = byId.sun;
+  var pair = custom && sys.binary && sys.binary.regime === 'P';
+  $('selName').textContent = b.name + (b.home ? ' (Home)' : ''); $('selKind').textContent = b.kind;
   var dl = $('facts'); dl.textContent = ''; liveEls = {};
   function add(k, v, live){
     var dt = document.createElement('dt'), dd = document.createElement('dd');
     dt.textContent = k; dd.textContent = v; if (live){ dd.className = 'live'; liveEls[live] = dd; }
     dl.appendChild(dt); dl.appendChild(dd);
   }
-  add('Diameter', b.diameter || fmtNum(b.radiusKm * 2) + ' km');
-  var rot = fmtHours(b.rotH) + (b.retro ? ', backwards' : '') + (b.rotNote ? ' (' + b.rotNote + ')' : '') + (b.lockNote ? ', ' + b.lockNote : '');
+  var dia = b.diameter || fmtNum(b.radiusKm * 2) + ' km';
+  if (custom && b.isStar) dia += ' (' + fmtNum(b.radiusKm / 695700, b.radiusKm < 6e5 ? 3 : 2) + ' × the Sun)';
+  else if (custom) dia += ' (' + fmtNum(b.radiusKm / 6378, 2) + ' × Earth)';
+  if (custom && b.isStar){
+    add('Type', b.spt);
+    add('Surface temperature', fmtNum(b.Teff) + ' K');
+    add('Brightness', fmtNum(b.L, b.L < 1 ? 4 : 1) + ' × the Sun');
+    add('Mass', fmtNum(b.massSun, 2) + ' × the Sun');
+  }
+  add('Diameter', dia);
+  if (custom && b.massEarth) add('Mass', b.giant ? fmtMass(b.massEarth) : fmtNum(b.massEarth, b.massEarth < 0.1 ? 3 : 2) + ' Earth masses');
+  if (custom && b.giant){ add('Size class', b.ggClass + ' giant'); add('Density', fmtNum(b.density, 2) + ' × Earth\'s'); }
+  if (custom && b.sizeClass){
+    add('Size class', b.sizeClass + ' (' + b.worldType + ')');
+    add('Density', fmtNum(b.density, 2) + ' × Earth\'s');
+    add('Surface gravity', fmtNum(b.gravity, 2) + ' g');
+  }
+  var rot = fmtHours(b.rotH) + (b.retro ? ', backwards' : '') + (b.rotNote ? ' (' + b.rotNote + ')' : '') + (b.lockNote ? ', ' + b.lockNote : '')
+          + (custom && b.isStar ? ' (typical for the type)' : '');
   add('Spin (one turn)', rot);
   add('Axial tilt', fmtNum(b.obliq, 2) + '°');
-  if (b.periodDays) add(b.id === 'moon' ? 'Orbits Earth in' : 'Year', fmtPeriod(b.periodDays));
-  if (b.incl != null) add('Orbit tilt', fmtNum(b.incl, 1) + '°');
-  if (b.ecc != null) add('Orbit stretch', fmtNum(b.ecc, 3));
-  if (b.id === 'moon') add('Distance from Earth', 'about 384,000 km');
-  else if (b.id !== 'sun'){ add('Distance from Sun now', '', 'dist'); add('Sunlight takes', '', 'light'); }
-  if (b.id === 'moon') add('Phase now', '', 'phase');
-  var has = !!b.customTex;
-  $('mapReset').disabled = !has;
+  if (b.periodDays){
+    var yearLabel = b.isMoon ? 'Orbits ' + b.parentBody.name + ' in' : b.companion ? 'Orbits ' + primary.name + ' in' : b.primary ? 'Orbits the pair\'s centre in' : 'Year';
+    if (!(b.primary && !pair)) add(yearLabel, fmtPeriod(b.periodDays));
+  }
+  if (b.incl != null && !b.isStar) add('Orbit tilt', fmtNum(b.incl, 1) + '°');
+  if (b.ecc != null && !(b.isStar && b.primary)) add('Orbit stretch', fmtNum(b.ecc, 3));
+  if (b.companion) add('Mean separation', fmtNum(b.aAU, b.aAU < 1 ? 3 : 1) + ' AU');
+  if (b.isMoon){
+    add('Distance from ' + b.parentBody.name, b.moon.real ? 'about 384,000 km' : fmtNum(b.moon.aKm) + ' km (' + fmtNum(b.moon.kRadii, 1) + ' planet radii)');
+    if (b.moon.real) add('Phase now', '', 'phase');
+  } else if (!b.isStar){
+    add(pair ? 'Distance from the pair\'s centre now' : 'Distance from ' + primary.name + ' now', '', 'dist');
+    add(custom ? 'Starlight takes' : 'Sunlight takes', '', 'light');
+    if (custom) add('Starlight vs Earth', '', 'flux');
+    add('Habitable zone', zoneText(b.el.a[0]));
+    if (custom && b.sizeClass){
+      var at = b.atmosphere;
+      add('Atmosphere', at.none ? 'None to speak of' : at.category + ' (' + fmtNum(at.pressureAtm, at.pressureAtm < 10 ? 2 : 0) + ' atm)' + (at.breathable ? (at.marginal ? ', breathable but marginal: ' + at.marginal.toLowerCase() : ', breathable') : ', not breathable'));
+      if (b.hydro) add('Liquid water', fmtNum(b.hydro) + '% of the surface');
+      add('Surface temperature', kc(b.surfaceK) + ', ' + b.climate.toLowerCase());
+      add('Blackbody temperature', kc(b.bbK) + ' (no atmosphere or reflection)');
+      if (b.tide) add('Day side / night side', fmtNum(b.tide.dayK) + ' K / ' + fmtNum(b.tide.nightK) + ' K');
+      add('Volcanic activity', b.volcanic);
+      add('Resources', b.resources.label + ' (' + (b.resources.rvm > 0 ? '+' : '') + b.resources.rvm + ')');
+      add('Habitability', (b.habitability > 0 ? '+' : '') + b.habitability + ', affinity ' + (b.affinity > 0 ? '+' : '') + b.affinity);
+    } else if (custom){
+      add('Blackbody temperature', kc(b.bbK) + ' (cloud tops differ)');
+    }
+    if (custom && b.moonBodies && b.moonBodies.length) add('Moons', String(b.moonBodies.length));
+  }
+  if (custom && b.isStar && b.primary){
+    add('System age', fmtGyr(sys.ageGyr));
+    add('Main-sequence life', b.evolved ? 'It has left the main sequence' : b.spanGyr > 100 ? 'Far longer than the age of the universe' : fmtGyr(b.spanGyr) + ' (rough)');
+    add('Habitable zone', fmtNum(sys.hz.inner, 2) + ' to ' + fmtNum(sys.hz.outer, 2) + ' AU' + (sys.hz.rough ? ' (rough)' : ''));
+    add('Snow line', fmtNum(sys.frost, 2) + ' AU');
+    if (sys.binary){
+      var bi = sys.binary, comp = byId.sun2;
+      add('Companion star', comp.name + ' (' + comp.spt + ', ' + fmtNum(comp.massSun, 2) + ' × the Sun)');
+      add('Companion distance', fmtNum(bi.sep, bi.sep < 1 ? 3 : 1) + ' AU (' + fmtNum(bi.min, bi.min < 1 ? 3 : 1) + ' to ' + fmtNum(bi.max, bi.max < 1 ? 3 : 1) + ')');
+      add('Planets', bi.regime === 'S' ? 'Orbit this star only, inside ' + fmtNum(bi.aS * 0.95, 2) + ' AU' : bi.regime === 'P' ? 'Orbit both stars, beyond ' + fmtNum(bi.aP, 2) + ' AU' : 'None can orbit stably');
+    }
+  }
+  $('factNote').textContent = custom
+    ? 'A made-up system. Star figures are real data for the star type or table entry; the planets are plausible, not measured. Many of the rules are tabletop-style rules of thumb, not astrophysics. Habitable zone: Kopparapu et al. 2014.'
+    : 'Sizes, spin and orbit figures: NASA Planetary Fact Sheet. Distance and light time are worked out live from the date. Habitable zone: Kopparapu et al. 2014.';
+  $('mapReset').disabled = !b.customTex;
   $('mapBtn').textContent = 'Use my own map…';
   updateLive();
 }
 function updateLive(){
-  var b = byId[state.focus];
-  var r = b.id === 'moon' ? plan.earth : plan[b.id];
+  var b = byId[state.focus]; if (!b) return;
+  var r = plan[b.id];
   if (r && liveEls.dist){
     var au = Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z), km = au * AU_KM;
     liveEls.dist.textContent = fmtNum(au, 3) + ' AU (' + fmtNum(km / 1e6, 1) + ' million km)';
     liveEls.light.textContent = fmtLight(km / C_KMS);
+    if (liveEls.flux){
+      var flux = 0;
+      sys.stars.forEach(function(st){
+        var q = plan[st.id] || {x:0, y:0, z:0}, dx = r.x - q.x, dy = r.y - q.y, dz = r.z - q.z, d2 = Math.max(dx * dx + dy * dy + dz * dz, 1e-9);
+        flux += st.L / d2;
+      });
+      liveEls.flux.textContent = fmtNum(flux, flux < 10 ? 2 : 0) + ' × Earth\'s';
+    }
   }
   if (liveEls.phase){
     var f = moonElongation(state.jd) / TAU, illum = (1 - Math.cos(f * TAU)) / 2;
     var name = f < 0.03 || f > 0.97 ? 'New' : f < 0.22 ? 'Waxing crescent' : f < 0.28 ? 'First quarter' : f < 0.47 ? 'Waxing gibbous'
              : f < 0.53 ? 'Full' : f < 0.72 ? 'Waning gibbous' : f < 0.78 ? 'Last quarter' : 'Waning crescent';
     liveEls.phase.textContent = name + ', ' + Math.round(illum * 100) + '% lit (mean)';
+  }
+}
+
+/* Body buttons: the star and planets always; the moons of whichever planet you are looking at underneath. */
+function buildBodyList(){
+  var list = $('bodyList'); list.textContent = '';
+  BODIES.forEach(function(b){
+    if (b.isMoon) return;
+    var btn = document.createElement('button');
+    btn.className = 'btn'; btn.dataset.id = b.id; btn.setAttribute('aria-pressed', 'false');
+    btn.textContent = sys.mode === 'custom' && !b.isStar ? b.short + ', ' + (b.giant ? 'giant' : 'rocky') + (b.home ? ' (home)' : '') : b.name;
+    btn.title = b.name + (b.kind ? ', ' + b.kind.toLowerCase() : '');
+    btn.setAttribute('aria-label', b.name + (b.home ? ' (home world)' : ''));
+    btn.addEventListener('click', function(){ focusOn(b.id); });
+    list.appendChild(btn);
+  });
+}
+function refreshBodyButtons(){
+  var f = byId[state.focus], parent = f.isMoon ? f.parentBody : f, ms = (parent && parent.moonBodies) || [], ml = $('moonList');
+  document.querySelectorAll('#bodyList .btn').forEach(function(btn){ btn.setAttribute('aria-pressed', String(btn.dataset.id === state.focus)); });
+  ml.textContent = '';
+  $('moonWrap').hidden = !ms.length;
+  if (ms.length){
+    $('moonLabel').textContent = 'Moons of ' + parent.name;
+    ms.forEach(function(m){
+      var btn = document.createElement('button');
+      btn.className = 'btn'; btn.dataset.id = m.id; btn.textContent = m.short || m.name; btn.title = m.name; btn.setAttribute('aria-label', m.name);
+      btn.setAttribute('aria-pressed', String(m.id === state.focus));
+      btn.addEventListener('click', function(){ focusOn(m.id); });
+      ml.appendChild(btn);
+    });
   }
 }
 
@@ -743,8 +1154,10 @@ canvas.addEventListener('wheel', function(e){
 }, {passive:false});
 canvas.addEventListener('dblclick', function(e){ var b = pickAt(e.clientX, e.clientY); if (!b) focusOn('sun', {overview:true}); });
 
-function pickAt(cx, cy){
+// The body under a screen point, or null. Points over the control panel never count.
+function bodyAt(cx, cy){
   var rect = canvas.getBoundingClientRect(), x = cx - rect.left, y = cy - rect.top, best = null, bestScore = 1e9;
+  if (!isFinite(x) || !isFinite(y) || x > visible.w || y > visible.h) return null;
   BODIES.forEach(function(b){
     if (!b.screen || b.screen.behind) return;
     var d = Math.hypot(b.screen.x - x, b.screen.y - y), reach = Math.max(b.pxRadius, 16);
@@ -753,15 +1166,19 @@ function pickAt(cx, cy){
       if (score < bestScore){ bestScore = score; best = b; }
     }
   });
+  return best;
+}
+function pickAt(cx, cy){
+  var best = bodyAt(cx, cy);
   if (best) focusOn(best.id);
   return best;
 }
 
-function setSpeed(i){
+function setSpeed(i, keepSaved){
   state.speedIdx = clamp(i, 0, SPEEDS.length - 1);
   $('speed').value = state.speedIdx;
   $('speedLabel').textContent = SPEEDS[state.speedIdx].label;
-  saveView();
+  if (!keepSaved && sys && sys.mode === 'sol'){ solarSpeedIdx = state.speedIdx; saveView(); }
 }
 function setPaused(p){
   state.paused = p;
@@ -770,15 +1187,21 @@ function setPaused(p){
 function setDir(d){
   state.dir = d; var btn = $('reverse'); btn.setAttribute('aria-pressed', String(d < 0));
 }
-function goToday(){ state.jd = jdFromDate(new Date()); rebuildOrbits(); toast('Back to today.'); }
+function goToday(){
+  if (sys.mode === 'custom'){ state.jd = sys.epochJd; rebuildOrbits(); toast('Back to the start of the clock.'); return; }
+  state.jd = jdFromDate(new Date()); rebuildOrbits(); toast('Back to today.');
+}
 function setToggle(id, key, on, apply){
   state[key] = on; $(id).setAttribute('aria-pressed', String(on)); if (apply) apply(); saveView();
 }
 function applyVisibility(){
   PLANETS.forEach(function(b){ b.orbitLine.visible = state.orbits; });
-  moonOrbitLine.visible = state.orbits;
+  MOONS.forEach(function(m){ m.orbitLine.visible = state.orbits; });
   labelsEl.style.display = state.labels ? '' : 'none';
   stars.visible = state.stars;
+  zoneGroup.visible = state.zone;
+  beltRoot.visible = state.orbits;
+  BELTS.forEach(function(bt){ bt.label.style.display = state.orbits ? '' : 'none'; });
 }
 
 $('playPause').addEventListener('click', function(){ setPaused(!state.paused); });
@@ -789,6 +1212,7 @@ $('overview').addEventListener('click', function(){ focusOn('sun', {overview:tru
 $('tOrbits').addEventListener('click', function(){ setToggle('tOrbits', 'orbits', !state.orbits, applyVisibility); });
 $('tLabels').addEventListener('click', function(){ setToggle('tLabels', 'labels', !state.labels, applyVisibility); });
 $('tStars').addEventListener('click', function(){ setToggle('tStars', 'stars', !state.stars, applyVisibility); });
+$('tZone').addEventListener('click', function(){ setToggle('tZone', 'zone', !state.zone, applyVisibility); });
 function setScaleMode(key, on, ids){
   if (state[key] === on) return;
   state[key] = on; $(ids[0]).setAttribute('aria-pressed', String(!on)); $(ids[1]).setAttribute('aria-pressed', String(on));
@@ -798,14 +1222,6 @@ $('distSqueezed').addEventListener('click', function(){ setScaleMode('trueDist',
 $('distTrue').addEventListener('click', function(){ setScaleMode('trueDist', true, ['distSqueezed', 'distTrue']); });
 $('sizeBig').addEventListener('click', function(){ setScaleMode('trueSize', false, ['sizeBig', 'sizeTrue']); });
 $('sizeTrue').addEventListener('click', function(){ setScaleMode('trueSize', true, ['sizeBig', 'sizeTrue']); });
-
-// bodies list
-BODIES.forEach(function(b){
-  var btn = document.createElement('button');
-  btn.className = 'btn'; btn.dataset.id = b.id; btn.textContent = b.name; btn.setAttribute('aria-pressed', 'false');
-  btn.addEventListener('click', function(){ focusOn(b.id); });
-  $('bodyList').appendChild(btn);
-});
 
 /* Panel as a bottom sheet on phones */
 $('handle').addEventListener('click', function(){
@@ -830,6 +1246,10 @@ $('helpOpen').addEventListener('click', openHelp);
 $('helpClose').addEventListener('click', closeHelp);
 $('help').addEventListener('click', function(e){ if (e.target === this) closeHelp(); });
 
+function stepFocus(d){
+  var i = BODIES.indexOf(byId[state.focus]);
+  focusOn(BODIES[(i + d + BODIES.length) % BODIES.length].id);
+}
 window.addEventListener('keydown', function(e){
   var t = e.target, tag = t && t.tagName;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -848,6 +1268,9 @@ window.addEventListener('keydown', function(e){
   if (k === 't' || k === 'T'){ goToday(); return; }
   if (k === 'o' || k === 'O'){ setToggle('tOrbits', 'orbits', !state.orbits, applyVisibility); return; }
   if (k === 'l' || k === 'L'){ setToggle('tLabels', 'labels', !state.labels, applyVisibility); return; }
+  if (k === 'z' || k === 'Z'){ setToggle('tZone', 'zone', !state.zone, applyVisibility); return; }
+  if (k === ','){ stepFocus(-1); return; }
+  if (k === '.'){ stepFocus(1); return; }
   if (k === '0'){ focusOn('sun', {overview:true}); return; }
   if (k >= '1' && k <= '9'){
     var b = BODIES.filter(function(x){ return x.key === k; })[0];
@@ -864,46 +1287,169 @@ window.addEventListener('keydown', function(e){
 /* ------------------------------------------------------------------
    12. Your own maps
 ------------------------------------------------------------------ */
-function applyMap(b, img, name){
-  var src = img, maxT = renderer.capabilities.maxTextureSize || 4096, w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+// Your images are kept for as long as the page is open, separately for our Solar System and for built systems,
+// keyed by body id. Rolling a new system keeps them on the same planet slots (b, c, d...); nothing is sent anywhere.
+var userMaps = {sol:{}, custom:{}};
+function fitSource(img){
+  var maxT = renderer.capabilities.maxTextureSize || 4096, w = img.naturalWidth || img.width, h = img.naturalHeight || img.height, src = img;
   if (w > maxT || h > maxT){
     var k = Math.min(maxT / w, maxT / h), c = document.createElement('canvas');
     c.width = Math.floor(w * k); c.height = Math.floor(h * k);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); src = c;
   }
+  return {src:src, w:w, h:h};
+}
+function dress(b, src){
   var tex = new THREE.Texture(src);
   tex.encoding = THREE.sRGBEncoding; tex.anisotropy = maxAniso; tex.needsUpdate = true;
   if (b.customTex) b.customTex.dispose();
   b.customTex = tex; b.material.map = tex; b.material.color.set(0xffffff); b.material.needsUpdate = true;
-  var ratio = w / h, msg = b.name + ' now wears ' + name + '. It stays in this tab; nothing is uploaded.';
-  if (Math.abs(ratio - 2) > 0.1) msg += ' That image is ' + fmtNum(ratio, 2) + ':1, not 2:1, so it will look stretched.';
-  $('mapMsg').textContent = msg;
-  if (state.focus === b.id) $('mapReset').disabled = false;
-  toast(b.name + ' has your map.');
 }
-function resetMap(b){
-  if (!b.customTex) return;
-  b.customTex.dispose(); b.customTex = null;
+function refreshMapButtons(){
+  $('mapsClear').disabled = !Object.keys(userMaps[sys.mode]).length;
+  var f = byId[state.focus]; if (f) $('mapReset').disabled = !f.customTex;
+}
+function applyMap(b, img, name, quiet){
+  var fit = fitSource(img);
+  dress(b, fit.src);
+  userMaps[sys.mode][b.id] = {src:fit.src, name:name, ratio:fit.w / fit.h};
+  if (!quiet){
+    var msg = b.name + ' now wears ' + name + '. It stays in this tab; nothing is uploaded.';
+    if (Math.abs(fit.w / fit.h - 2) > 0.1) msg += ' That image is ' + fmtNum(fit.w / fit.h, 2) + ':1, not 2:1, so it will look stretched.';
+    $('mapMsg').textContent = msg;
+    toast(b.name + ' has your image.');
+  }
+  refreshMapButtons();
+}
+function unDress(b){
+  if (b.customTex){ b.customTex.dispose(); b.customTex = null; }
   if (b.builtTex){ b.material.map = b.builtTex; b.material.color.set(0xffffff); }
   else { b.material.map = null; b.material.color.set(b.color); }
   b.material.needsUpdate = true;
-  $('mapMsg').textContent = b.name + ' is back to its built-in look.';
-  if (state.focus === b.id) $('mapReset').disabled = true;
 }
-function loadMapFile(f){
-  if (!f) return;
-  var isImg = (f.type && f.type.indexOf('image/') === 0) || /\.(png|jpe?g|webp|gif|avif|bmp)$/i.test(f.name || '');
-  if (!isImg){ $('mapMsg').textContent = f.name + ' does not look like an image. Try a PNG or JPG.'; toast('That is not an image.'); return; }
-  var b = byId[state.focus], url = URL.createObjectURL(f), img = new Image();
-  img.onload = function(){ URL.revokeObjectURL(url); applyMap(b, img, f.name); };
-  img.onerror = function(){ URL.revokeObjectURL(url); $('mapMsg').textContent = 'Could not read ' + f.name + '. Try a PNG or JPG.'; };
+function resetMap(b){
+  if (!b.customTex) return;
+  unDress(b); delete userMaps[sys.mode][b.id];
+  $('mapMsg').textContent = b.name + ' is back to its built-in look.';
+  refreshMapButtons();
+}
+function clearAllMaps(){
+  Object.keys(userMaps[sys.mode]).forEach(function(id){ if (byId[id]) unDress(byId[id]); });
+  userMaps[sys.mode] = {};
+  refreshMapButtons();
+  toast('All your images removed.');
+}
+function restoreMaps(){
+  var m = userMaps[sys.mode];
+  Object.keys(m).forEach(function(id){ if (byId[id]) dress(byId[id], m[id].src); });
+  refreshMapButtons();
+}
+function isImageFile(f){ return (f.type && f.type.indexOf('image/') === 0) || /\.(png|jpe?g|webp|gif|avif|bmp)$/i.test(f.name || ''); }
+function readImage(f, ok, fail){
+  var url = URL.createObjectURL(f), img = new Image();
+  img.onload = function(){ URL.revokeObjectURL(url); ok(img); };
+  img.onerror = function(){ URL.revokeObjectURL(url); fail(); };
   img.src = url;
 }
+// One image dresses 'start'; more images dress the bodies after it, in the order they are listed.
+function loadMapFiles(fileList, start){
+  var files = Array.prototype.filter.call(fileList, isImageFile);
+  if (!files.length){
+    var one = fileList[0];
+    $('mapMsg').textContent = (one ? one.name : 'That') + ' does not look like an image. Try a PNG or JPG.'; toast('That is not an image.'); return;
+  }
+  var i0 = BODIES.indexOf(start), total = Math.min(files.length, BODIES.length), done = 0, ok = 0, failed = [];
+  function finish(){
+    if (++done < total) return;
+    if (total > 1) toast('Dressed ' + ok + ' bodies, starting with ' + start.name + (files.length > total ? '. Extra images were left over.' : '.'));
+    if (failed.length) $('mapMsg').textContent = 'Could not read ' + failed.join(', ') + '. Try a PNG or JPG.';
+    else if (total > 1) $('mapMsg').textContent = ok + ' images are on ' + ok + ' bodies, in order from ' + start.name + '.';
+  }
+  files.slice(0, total).forEach(function(f, k){
+    var b = BODIES[(i0 + k) % BODIES.length];
+    readImage(f, function(img){ applyMap(b, img, f.name, total > 1); ok++; finish(); }, function(){ failed.push(f.name); finish(); });
+  });
+}
+function loadMapFile(f){ if (f) loadMapFiles([f], byId[state.focus]); }
 $('mapBtn').addEventListener('click', function(){ $('mapFile').click(); });
-$('mapFile').addEventListener('change', function(){ var f = this.files[0]; this.value = ''; loadMapFile(f); });
+$('mapFile').addEventListener('change', function(){ var files = Array.prototype.slice.call(this.files); this.value = ''; if (files.length) loadMapFiles(files, byId[state.focus]); });
+$('mapFile').multiple = true;
 $('mapReset').addEventListener('click', function(){ resetMap(byId[state.focus]); });
-['dragenter', 'dragover'].forEach(function(t){ window.addEventListener(t, function(e){ e.preventDefault(); }); });
-window.addEventListener('drop', function(e){ e.preventDefault(); if (e.dataTransfer && e.dataTransfer.files.length) loadMapFile(e.dataTransfer.files[0]); });
+$('mapsClear').addEventListener('click', clearAllMaps);
+
+// Drag an image over a body and the page says which one it will dress; drop it there. Dropped anywhere else, it dresses the selected body.
+var dropHint = $('dropHint'), pausedByDrag = false, dragTimer = 0;
+function endDragPause(){
+  clearTimeout(dragTimer); dropHint.hidden = true;
+  if (pausedByDrag){ pausedByDrag = false; setPaused(false); }
+}
+function hasFiles(e){ return !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0); }
+['dragenter', 'dragover'].forEach(function(t){
+  window.addEventListener(t, function(e){
+    e.preventDefault();
+    if (t !== 'dragover' || !hasFiles(e)) return;
+    if (!state.paused){ pausedByDrag = true; setPaused(true); }        // hold still, so the planet you are aiming at stays put
+    clearTimeout(dragTimer); dragTimer = setTimeout(endDragPause, 600);   // if the drag is abandoned, carry on
+    var b = bodyAt(e.clientX, e.clientY) || byId[state.focus];
+    dropHint.hidden = false; dropHint.textContent = 'Drop to dress ' + b.name;
+    dropHint.style.left = e.clientX + 'px'; dropHint.style.top = e.clientY + 'px';
+  });
+});
+window.addEventListener('drop', function(e){
+  e.preventDefault(); endDragPause();
+  if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+  var b = bodyAt(e.clientX, e.clientY) || byId[state.focus];
+  if (b.id !== state.focus) focusOn(b.id);
+  loadMapFiles(e.dataTransfer.files, b);
+});
+
+/* ---- project files: the system and your images, in one file you can carry about ---- */
+function srcToDataUrl(src){
+  var w = src.naturalWidth || src.width, h = src.naturalHeight || src.height, k = Math.min(1, 2048 / w), c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.9);
+}
+$('projSave').addEventListener('click', function(){
+  var maps = Object.keys(userMaps[sys.mode]).map(function(id){ var m = userMaps[sys.mode][id]; return {id:id, name:m.name, data:srcToDataUrl(m.src)}; });
+  var proj = {app:'solarify', version:1, mode:sys.mode, link:sys.mode === 'custom' ? SYS.encodeCfg(sys.cfg) : null, maps:maps};
+  var blob = new Blob([JSON.stringify(proj)], {type:'application/json'}), a = document.createElement('a'), url = URL.createObjectURL(blob);
+  a.href = url; a.download = 'solarify-' + (sys.mode === 'custom' ? sys.name.toLowerCase() : 'solar-system') + '.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  toast('Saved ' + a.download + (maps.length ? ' with ' + maps.length + (maps.length === 1 ? ' image.' : ' images.') : '.'));
+});
+$('projOpen').addEventListener('click', function(){ $('projFile').click(); });
+$('projFile').addEventListener('change', function(){
+  var f = this.files[0]; this.value = ''; if (!f) return;
+  if (f.size > 80 * 1024 * 1024){ toast('That file is too big to be a Solarify project.'); return; }
+  var rd = new FileReader();
+  rd.onload = function(){ openProject(String(rd.result)); };
+  rd.onerror = function(){ toast('Could not read that file.'); };
+  rd.readAsText(f);
+});
+function openProject(text){
+  var proj, cfg = null;
+  try{ proj = JSON.parse(text); }catch(e){ proj = null; }
+  if (!proj || proj.app !== 'solarify' || proj.version !== 1 || (proj.mode !== 'sol' && proj.mode !== 'custom')){ toast('That is not a Solarify project file.'); return false; }
+  if (proj.mode === 'custom'){ cfg = SYS.decodeCfg(proj.link); if (!cfg){ toast('That project was made by a different version of the builder, so it cannot be opened.'); return false; } }
+  var list = Array.isArray(proj.maps) ? proj.maps.filter(function(m){
+    return m && typeof m.id === 'string' && typeof m.name === 'string' && typeof m.data === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(m.data);
+  }).slice(0, 200) : [];
+  var loaded = {}, left = list.length;
+  function go(){
+    userMaps[proj.mode] = loaded;
+    if (proj.mode === 'custom') generateSystem(cfg); else showSolar();
+    toast('Opened the project' + (Object.keys(loaded).length ? ' with ' + Object.keys(loaded).length + ' images.' : '.'));
+  }
+  if (!left){ go(); return true; }
+  list.forEach(function(m){
+    var img = new Image();
+    img.onload = function(){ loaded[m.id] = {src:fitSource(img).src, name:m.name.slice(0, 200), ratio:img.width / img.height}; if (!--left) go(); };
+    img.onerror = function(){ if (!--left) go(); };
+    img.src = m.data;
+  });
+  return true;
+}
 
 /* ------------------------------------------------------------------
    13. Save a PNG of what you can see
@@ -917,7 +1463,8 @@ $('savePng').addEventListener('click', function(){
   out.toBlob(function(blob){
     if (!blob){ toast('Could not make the PNG.'); return; }
     var a = document.createElement('a'), url = URL.createObjectURL(blob);
-    a.href = url; a.download = 'solarify-' + state.focus + '-' + dateFromJd(state.jd).toISOString().slice(0, 10) + '.png';
+    var when = sys.mode === 'custom' ? 'day' + Math.round(state.jd - sys.epochJd) : dateFromJd(state.jd).toISOString().slice(0, 10);
+    a.href = url; a.download = 'solarify-' + (sys.mode === 'custom' ? sys.name.toLowerCase() + '-' : '') + state.focus + '-' + when + '.png';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
     toast('Saved ' + a.download);
@@ -925,22 +1472,185 @@ $('savePng').addEventListener('click', function(){
 });
 
 /* ------------------------------------------------------------------
-   14. Frame loop
+   14. Loading a system. Everything above works on whatever 'sys' is; this swaps it.
+------------------------------------------------------------------ */
+function loadSystem(def){
+  if (sys) teardownSystem();
+  sys = def;
+  def.bodies.forEach(function(b){ BODIES.push(b); byId[b.id] = b; });
+  BODIES.forEach(function(b){
+    if (b.isMoon){
+      b.parentBody = byId[b.parent];
+      (b.parentBody.moonBodies = b.parentBody.moonBodies || []).push(b);
+      MOONS.push(b);
+    }
+    if (b.el) PLANETS.push(b);
+  });
+  def.star = byId.sun;
+  def.stars = BODIES.filter(function(b){ return b.isStar; });
+  var rocks = PLANETS.filter(function(p){ return !p.isStar; });
+  def.innerA = rocks.length ? Math.min.apply(null, rocks.map(function(p){ return p.el.a[0] * (1 - p.el.e[0]); })) : null;
+  BODIES.forEach(createBody);
+  makeBelts();
+  queueTextures();
+
+  // clock
+  if (def.mode === 'sol'){
+    state.jd = jdFromDate(new Date());
+    setSpeed(solarSpeedIdx, true);
+  } else {
+    state.jd = def.epochJd;
+    var want = def.refPeriodDays / 12, idx = 0;       // about twelve seconds for the home planet to go round
+    SPEEDS.forEach(function(s, i){ if (s.days <= want) idx = i; });
+    setSpeed(idx, true);
+  }
+  setDir(1); setPaused(!!reducedMotion);
+
+  // interface
+  $('sysName').hidden = def.mode !== 'custom';
+  if (def.mode === 'custom') $('sysName').textContent = def.name + ', ' + def.primary.label + (def.binary ? ' with a companion star' : '');
+  $('today').textContent = def.mode === 'custom' ? 'Back to the start' : 'Back to today';
+  $('timeHint').textContent = def.mode === 'custom'
+    ? 'This system starts at day 0 with the planets at random points on their orbits. Spin is slowed at high speeds so planets don\'t strobe.'
+    : 'Planets sit where they really are on the date shown. Spin is slowed at high speeds so planets don\'t strobe.';
+  $('rangeNote').hidden = true;
+  buildBodyList();
+  $('mapMsg').textContent = 'Drop an equirectangular map (2:1) anywhere to dress the selected body. It stays in this tab; nothing is uploaded.';
+  buildZone();
+  updateScaleHint();
+  focusOffset.set(0, 0, 0);
+  updateBodies(0);
+  BODIES.forEach(function(b){ b.group.updateMatrixWorld(true); });
+  focusOn('sun', {overview:true});
+  camera3.theta = 0.6; camera3.phi = 0.5;
+  camera3.dist = camera3.targetDist;
+  applyVisibility();
+  restoreMaps();
+  lastDateText = '';
+}
+
+/* ------------------------------------------------------------------
+   15. The "Build your own" form
+------------------------------------------------------------------ */
+var CFG_KEY = 'solarify.cfg';
+function randomSeed(){ return 1 + Math.floor(Math.random() * 99999); }
+function formCfg(){
+  return SYS.normalise({star:$('fStar').value, mass:+$('fMass').value, age:+$('fAge').value, inner:+$('fInner').value, outer:+$('fOuter').value, belts:+$('fBelts').value,
+    moonsInner:+$('fMoonsInner').value, moonsOuter:+$('fMoonsOuter').value, home:$('fHome').value, giants:$('fGiants').value, companion:$('fCompanion').value, seed:+$('fSeed').value});
+}
+function updateOutputs(){
+  $('oMass').textContent = fmtNum(+$('fMass').value / 100, 2) + ' × Sun';
+  var age = +$('fAge').value; $('oAge').textContent = age === 0 ? 'rolled from the seed' : fmtNum(age / 10, 1) + ' billion years';
+  $('massRow').hidden = $('fStar').value !== 'X';
+  [['fInner', 'oInner'], ['fOuter', 'oOuter'], ['fBelts', 'oBelts'], ['fMoonsInner', 'oMoonsInner'], ['fMoonsOuter', 'oMoonsOuter']].forEach(function(r){ $(r[1]).textContent = $(r[0]).value; });
+}
+var giantMoonsTouched = false, buildTimer = 0;
+function setForm(c){
+  giantMoonsTouched = c.moonsOuter !== Math.min(8, 2 * c.moonsInner);
+  $('fStar').value = c.star; $('fHome').value = c.home; $('fSeed').value = c.seed; $('fGiants').value = c.giants; $('fCompanion').value = c.companion;
+  $('fMass').value = c.star === 'X' ? c.mass : 100; $('fAge').value = c.age;
+  [['fInner', c.inner], ['fOuter', c.outer], ['fBelts', c.belts], ['fMoonsInner', c.moonsInner], ['fMoonsOuter', c.moonsOuter]].forEach(function(r){ $(r[0]).value = r[1]; });
+  if (c.giants !== 'c' || c.companion !== 'n' || c.belts !== 1 || c.star === 'X') $('advanced').open = true;
+  updateOutputs();
+}
+// Every control rebuilds the system as soon as you let go of it, so there is no Generate button to find.
+function onFormChange(e){
+  var id = e.target.id;
+  if (id === 'fMoonsOuter') giantMoonsTouched = true;
+  if (id === 'fMoonsInner' && !giantMoonsTouched) $('fMoonsOuter').value = Math.min(8, 2 * (+$('fMoonsInner').value));
+  if (id === 'fStar' && $('fStar').value === 'X') $('advanced').open = true;
+  updateOutputs();
+  if (!sys || sys.mode !== 'custom') return;
+  clearTimeout(buildTimer);
+  buildTimer = setTimeout(function(){ generateSystem(formCfg(), true); }, 160);
+}
+(function initForm(){
+  SYS.STAR_ORDER.forEach(function(k){
+    var o = document.createElement('option'); o.value = k; o.textContent = SYS.STARS[k].label; $('fStar').appendChild(o);
+  });
+  var xo = document.createElement('option'); xo.value = 'X'; xo.textContent = SYS.MASS_STAR.label; $('fStar').appendChild(xo);
+  var saved = null;
+  try{ var raw = JSON.parse(localStorage.getItem(CFG_KEY) || 'null'); if (raw && typeof raw === 'object' && raw.giants) saved = SYS.normalise(raw); }catch(e){}
+  setForm(saved || SYS.normalise({star:'G', age:46, inner:4, outer:4, belts:1, moonsInner:1, moonsOuter:2, home:'hz', giants:'c', companion:'n', seed:randomSeed()}));
+  var ids = ['fStar', 'fMass', 'fAge', 'fInner', 'fOuter', 'fBelts', 'fMoonsInner', 'fMoonsOuter', 'fHome', 'fGiants', 'fCompanion', 'fSeed'];
+  ids.forEach(function(id){ $(id).addEventListener('input', updateOutputs); $(id).addEventListener('change', onFormChange); });
+})();
+
+function describe(g){
+  var c = g.counts, hz = g.hz, plural = function(n, one, many){ return n + ' ' + (n === 1 ? one : many); };
+  var parts = [plural(c.rocky, 'rocky planet', 'rocky planets'), plural(c.giants, 'giant', 'giants')];
+  if (c.belts) parts.push(plural(c.belts, 'asteroid belt', 'asteroid belts'));
+  parts.push(plural(c.moons, 'moon', 'moons'));
+  var txt = parts.join(', ') + '. ' + (g.binary ? 'Two stars. ' : '') + 'System age ' + fmtNum(g.ageGyr, 1) + ' billion years. Habitable zone ' + fmtNum(hz.inner, 2) + ' to ' + fmtNum(hz.outer, 2) + ' AU; snow line ' + fmtNum(g.frost, 2) + ' AU.';
+  return txt;
+}
+function buildDef(g){ g.mode = 'custom'; return g; }
+function showBuilt(cfg, g){
+  $('sysSummary').textContent = describe(g);
+  var ul = $('sysNotes'); ul.textContent = '';
+  g.notes.forEach(function(n){ var li = document.createElement('li'); li.textContent = n; ul.appendChild(li); });
+  setForm(cfg);
+  try{ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }catch(e){}
+  try{ history.replaceState(null, '', location.pathname + location.search + '#s=' + SYS.encodeCfg(cfg)); }catch(e){}
+}
+function generateSystem(cfg, quiet){
+  var g = buildDef(SYS.generate(cfg));
+  loadSystem(g);
+  setMode('custom');
+  showBuilt(g.cfg, g);
+  var asked = g.counts.moonsWanted, got = g.counts.moons;
+  if (asked !== got) toast('Built ' + g.name + ': ' + got + ' of ' + asked + ' moons could stay in orbit.');
+  else if (!quiet) toast('Built ' + g.name + '. Drop an image on any planet to dress it.');
+  return true;
+}
+function showSolar(){
+  loadSystem(solarDef());
+  setMode('sol');
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  return true;
+}
+function setMode(m){
+  $('modeSol').setAttribute('aria-pressed', String(m === 'sol'));
+  $('modeBuild').setAttribute('aria-pressed', String(m === 'custom'));
+  $('buildForm').hidden = m !== 'custom';
+}
+$('modeSol').addEventListener('click', function(){ if (sys.mode !== 'sol') showSolar(); });
+$('modeBuild').addEventListener('click', function(){ if (sys.mode !== 'custom') generateSystem(formCfg()); });
+$('fRoll').addEventListener('click', function(){ clearTimeout(buildTimer); $('fSeed').value = randomSeed(); generateSystem(formCfg()); });
+$('fCopy').addEventListener('click', function(){
+  var url = location.href;
+  function fallback(){ toast('Copy it from the address bar: ' + url); }
+  try{
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function(){ toast('Link copied. It rebuilds this exact system.'); }, fallback);
+    else fallback();
+  }catch(e){ fallback(); }
+});
+
+/* ------------------------------------------------------------------
+   16. Frame loop
 ------------------------------------------------------------------ */
 var last = performance.now(), liveClock = 0, lastDateText = '';
 function frame(now){
   var dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (!state.paused){
-    state.jd = clamp(state.jd + state.dir * SPEEDS[state.speedIdx].days * dt, JD_MIN, JD_MAX);
+    var next = state.jd + state.dir * SPEEDS[state.speedIdx].days * dt;
+    state.jd = sys.mode === 'custom' ? clamp(next, sys.epochJd - CUSTOM_SPAN_DAYS, sys.epochJd + CUSTOM_SPAN_DAYS) : clamp(next, JD_MIN, JD_MAX);
   }
   layoutView();
   updateBodies(dt);
   updateCamera(dt);
   updateLabels();
-  var ds = dateFromJd(state.jd).toISOString(), txt = ds.slice(0, 10) + ' ' + ds.slice(11, 16) + ' UTC';
+  var txt;
+  if (sys.mode === 'custom'){
+    var days = state.jd - sys.epochJd;
+    txt = 'Day ' + fmtNum(days, 0) + '  (year ' + fmtNum(days / 365.25, 2) + ')';
+  } else {
+    var ds = dateFromJd(state.jd).toISOString();
+    txt = ds.slice(0, 10) + ' ' + ds.slice(11, 16) + ' UTC';
+  }
   if (txt !== lastDateText){
     $('dateText').textContent = txt; lastDateText = txt;
-    $('rangeNote').hidden = state.jd >= 2378496.5 && state.jd <= 2469807.5;   // 1800 to 2050
+    if (sys.mode === 'sol') $('rangeNote').hidden = state.jd >= 2378496.5 && state.jd <= 2469807.5;   // 1800 to 2050
   }
   liveClock += dt; if (liveClock > 0.25){ liveClock = 0; updateLive(); }
   if (texJob || texQueue.length) pumpTextures();
@@ -949,26 +1659,27 @@ function frame(now){
 }
 
 /* ------------------------------------------------------------------
-   15. Start
+   17. Start
 ------------------------------------------------------------------ */
-setSpeed(state.speedIdx);
-setPaused(state.paused);
-['tOrbits:orbits', 'tLabels:labels', 'tStars:stars'].forEach(function(p){ var q = p.split(':'); $(q[0]).setAttribute('aria-pressed', String(state[q[1]])); });
+['tOrbits:orbits', 'tLabels:labels', 'tStars:stars', 'tZone:zone'].forEach(function(p){ var q = p.split(':'); $(q[0]).setAttribute('aria-pressed', String(state[q[1]])); });
 $('distSqueezed').setAttribute('aria-pressed', String(!state.trueDist)); $('distTrue').setAttribute('aria-pressed', String(state.trueDist));
 $('sizeBig').setAttribute('aria-pressed', String(!state.trueSize)); $('sizeTrue').setAttribute('aria-pressed', String(state.trueSize));
-updateScaleHint();
+setPaused(state.paused);
 layoutView();
-updateBodies(0);
-BODIES.forEach(function(b){ b.group.updateMatrixWorld(true); });
-focusOn('sun', {overview:true});
-camera3.dist = camera3.targetDist;
+var startCfg = (function(){ var m = /^#s=([^&]+)/.exec(location.hash || ''); return m ? SYS.decodeCfg(m[1]) : null; })();
+if (startCfg) generateSystem(startCfg); else showSolar();
 started = true;
-applyVisibility();
+// Pasting a second share link into a tab that already has one open only changes the hash, so listen for that.
+window.addEventListener('hashchange', function(){
+  var m = /^#s=([^&]+)/.exec(location.hash || ''), c = m ? SYS.decodeCfg(m[1]) : null;
+  if (!c || (sys.mode === 'custom' && SYS.encodeCfg(c) === SYS.encodeCfg(sys.cfg))) return;
+  generateSystem(c);
+});
 window.addEventListener('resize', function(){ layoutView(); if (state.overview) camera3.targetDist = overviewDist(); });
 
-// A small read-only handle, mainly so the maths can be checked from the console.
+// A small handle, mainly so the maths can be checked from the console and the tests.
 window.solarify = {
-  version: '0.1.0',
+  version: '0.3.0',
   positionsAU: function(when){
     var jd = typeof when === 'number' ? when : jdFromDate(new Date(when)), T = centuries(jd), out = {};
     PLANETS.forEach(function(b){
@@ -979,10 +1690,17 @@ window.solarify = {
   },
   moonElongationDeg: function(when){ var jd = typeof when === 'number' ? when : jdFromDate(new Date(when)); return moonElongation(jd) / DEG; },
   setDate: function(when){ state.jd = clamp(jdFromDate(new Date(when)), JD_MIN, JD_MAX); rebuildOrbits(); },
+  setDay: function(d){ if (sys.mode === 'custom'){ state.jd = sys.epochJd + d; rebuildOrbits(); } },
   date: function(){ return dateFromJd(state.jd).toISOString(); },
   textureSizes: function(){ var r = {}; BODIES.forEach(function(b){ r[b.id] = b.texSize || 0; }); return r; },
   screenOf: function(id){ var b = byId[id]; return b && b.screen ? {x:b.screen.x, y:b.screen.y, behind:b.screen.behind, pxRadius:b.pxRadius} : null; },
   bodyScenePos: function(id){ var g = byId[id].group.position; return {x:g.x, y:g.y, z:g.z, r:Math.sqrt(g.x*g.x + g.y*g.y + g.z*g.z)}; },
+  mode: function(){ return sys.mode; },
+  system: function(){ return {mode:sys.mode, name:sys.name, unit:sys.unit, hz:sys.hz, frost:sys.frost, notes:sys.notes, counts:sys.counts || null, belts:(sys.belts || []).length, stars:sys.stars.length, regime:sys.binary ? sys.binary.regime : null, age:sys.ageGyr,
+    bodies:BODIES.map(function(b){ return {id:b.id, name:b.name, kind:b.kind, parent:b.parent || null, home:!!b.home, key:b.key, aAU:b.aAU || null, ecc:b.ecc || 0, texSize:b.texSize || 0}; })}; },
+  build: function(cfg){ return generateSystem(SYS.normalise(cfg)); },
+  solar: function(){ return showSolar(); },
+  openProject: openProject, maps: function(){ return Object.keys(userMaps[sys.mode]); }, hasMap: function(id){ return !!(byId[id] && byId[id].customTex); },
   state: state
 };
 
