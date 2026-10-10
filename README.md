@@ -19,7 +19,7 @@ Two things I haven't done. I haven't tried it on a real graphics card or a phone
 Download `index.html` and double-click it. Or clone the repository and open the same file:
 
 ```
-git clone https://github.com/TABARC-Code/solarify
+git clone https://github.com/TABARC-Code/Solarify
 ```
 
 That's all. There's nothing to install and nothing to configure, which is the nicest thing I can say about configuration. Three.js is bundled inside the page, so it works offline.
