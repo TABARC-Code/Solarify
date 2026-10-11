@@ -86,6 +86,8 @@ The order is the design. Age feeds the star, the star sets the limits and the zo
 
 **Two rules are mine.** A temperate world needs a system at least 2.5 billion years old, otherwise it comes out as an ocean world with a note, which is roughly how long Earth took to grow oxygen. And the home placement overlap above.
 
+**Resizing a planet without disturbing the rest.** Size overrides needed one property: change planet 3 and planets 1, 2, 4 and 5 must not move. A single random stream can't give that, because a different size class changes how many numbers the world and its moons consume, and everything after it shifts. So each planet's body and moons now draw from their own stream seeded from the system seed and the planet's slot. The orbits still come from the main stream. The price was bumping the link version, which broke every old link, and I decided that was acceptable at this stage. The override rides in the share link as slot and class (rocky 0 to 3, giants 4 to 6, so a layout change can never apply a rocky size to a giant), and the tests check that nothing else changes, byte for byte.
+
 **Moons say no.** A moon holds an orbit only within a fraction of its planet's Hill sphere, so you get fewer than you asked for, with a note. Rocky planets near a star usually get none. This is the one place the builder refuses the user, and I think that's right: it's physics doing something visible.
 
 ### Rejected
@@ -140,6 +142,7 @@ None of this exists yet; it's what I'd consider.
 - Pluto, from a proper source.
 - A "who lives here" panel, if settlement and economy tables turn out to be worth wiring in.
 - Tectonics.
+- More per-planet overrides now that sizes work: world type, atmosphere, moon count, and an exact diameter inside the class. The per-planet random streams were built so these stay cheap.
 - A gallery of starter maps, if I can find ones whose licence lets me ship them.
 - The browser test scripts committed to the repository. This is the one I'd actually do first.
 

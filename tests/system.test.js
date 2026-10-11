@@ -67,11 +67,12 @@ var violations = {}, runs = 0, homeStats = {hz:[0, 0], hot:[0, 0], cold:[0, 0]};
 function bad(k, extra){ if (!violations[k]) violations[k] = extra || 'seen'; }
 function band(table, v){ for (var i = 0; i < table.length; i++){ var u = table[i][0]; if (u == null || v < u) return table[i][1]; } return table[table.length - 1][1]; }
 var CONFIGS = [];
+function fuzzSizes(seed){ var o = {}; for (var i = 1; i <= 16; i++) if ((seed * i * 7) % 3 === 0) o[i] = (seed + i) % 7; return o; }
 ['M', 'K', 'G', 'F', 'A', 'B', 'RG', 'WD', 'X'].forEach(function(sk){
   ['hz', 'hot', 'cold', 'none'].forEach(function(home){
     for (var seed = 1; seed <= 24; seed++){
       CONFIGS.push({star:sk, mass:[15, 40, 85, 100, 160, 300, 600][seed % 7], age:[0, 3, 20, 46, 90, 120][seed % 6], inner:seed % 9, outer:(seed * 7) % 9, belts:seed % 4,
-        moonsInner:seed % 5, moonsOuter:(seed * 3) % 9, home:home, giants:['c', 'e', 'h'][seed % 3], companion:['n', 'n', 'v', 'c', 'm', 'w', 'd'][seed % 7], seed:seed * 977});
+        moonsInner:seed % 5, moonsOuter:(seed * 3) % 9, home:home, giants:['c', 'e', 'h'][seed % 3], companion:['n', 'n', 'v', 'c', 'm', 'w', 'd'][seed % 7], seed:seed * 977, sizes:fuzzSizes(seed)});
     }
   });
 });
@@ -190,8 +191,8 @@ CONFIGS.forEach(function(cfg){
   var homes = planets.filter(function(p){ return p.home; });
   if (cfg.home === 'none' || empty ? homes.length !== 0 : homes.length !== 1) bad('home count', tag + ' ' + homes.length);
   if (homes.length === 1){
-    var h = homes[0], tried = !/left no room|Only the home world/.test(noteText);
-    if (['Standard', 'Large'].indexOf(h.sizeClass) < 0) bad('home world is not Standard or Large', tag);
+    var h = homes[0], shrunk = h.sizeSet && ['Tiny', 'Small'].indexOf(h.sizeClass) >= 0, tried = !shrunk && !/left no room|Only the home world/.test(noteText);
+    if (!shrunk && ['Standard', 'Large'].indexOf(h.sizeClass) < 0) bad('home world is not Standard or Large', tag);
     if (cfg.home === 'hz' && tried){ homeStats.hz[0]++; if (h.zone === 'in' || (g.hz.rough && true)) homeStats.hz[1]++; if (['Garden', 'Ocean'].indexOf(h.worldType) < 0) bad('hz home is not temperate or ocean', tag + h.worldType); }
     if (cfg.home === 'hot' && tried){ homeStats.hot[0]++; if (h.zone === 'inside') homeStats.hot[1]++; if (h.worldType !== 'Greenhouse') bad('hot home is not a greenhouse world', tag + h.worldType); }
     if (cfg.home === 'cold' && tried){ homeStats.cold[0]++; if (h.zone === 'beyond') homeStats.cold[1]++; if (['Ice', 'Ammonia'].indexOf(h.worldType) < 0) bad('cold home is not ice or ammonia', tag + h.worldType); }
@@ -238,6 +239,32 @@ var rolled = S.generate({star:'G', age:0, inner:2, outer:1, belts:0, moonsInner:
 check('Age 0 rolls an age from the table, within 0.1 and 12.5 billion years', rolled.ageGyr >= 0.1 && rolled.ageGyr <= 12.5, rolled.ageGyr.toFixed(2));
 var none = S.generate({star:'G', inner:0, outer:0, belts:0, moonsInner:0, moonsOuter:0, home:'none', age:46, giants:'c', companion:'n', seed:1});
 check('An empty system is just a star', none.bodies.length === 1 && none.counts.rocky === 0);
+
+
+/* --- per-planet size overrides --- */
+var base = {star:'G', inner:4, outer:3, belts:1, moonsInner:2, moonsOuter:3, home:'hz', age:46, giants:'c', companion:'n', seed:4242};
+var g0 = S.generate(base), g1 = S.generate(Object.assign({}, base, {sizes:{2:0}}));
+var p2a = g0.bodies.filter(function(b){ return b.id === 'p2'; })[0], p2b = g1.bodies.filter(function(b){ return b.id === 'p2'; })[0];
+check('A size override sets that planet\'s size class and marks it as set', p2b.sizeClass === 'Tiny' && p2b.sizeSet === true && p2a.sizeSet === false, p2a.sizeClass + ' to ' + p2b.sizeClass);
+check('The planet\'s automatic class is remembered so the panel can offer "Auto (...)"', p2b.sizeAuto === p2a.sizeAuto);
+var others = function(g){ return JSON.stringify(g.bodies.filter(function(b){ return b.id !== 'p2' && b.parent !== 'p2' && !/^p2m/.test(b.id); })); };
+check('Resizing one planet leaves every other body exactly as it was', others(g0) === others(g1));
+check('A Tiny override gives a diameter inside the Tiny limits (factor 0.004 to 0.024 of sqrt(BB/density))',
+  (function(){ var k = Math.sqrt(p2b.bbK / p2b.density) * S.REARTH_KM; return p2b.radiusKm / S.REARTH_KM >= Math.sqrt(p2b.bbK / p2b.density) * 0.004 - 1e-9 && p2b.radiusKm / S.REARTH_KM <= Math.sqrt(p2b.bbK / p2b.density) * 0.024 + 1e-9; })());
+var gg = S.generate(Object.assign({}, base, {sizes:{5:6}})), gg5 = gg.bodies.filter(function(b){ return b.id === 'p5'; })[0];
+check('A Large override on a giant gives a Large gas giant', gg5.giant && gg5.ggClass === 'Large', gg5.ggClass);
+var gz = S.generate(Object.assign({}, base, {sizes:{5:0}})), gz5 = gz.bodies.filter(function(b){ return b.id === 'p5'; })[0];
+var gr = S.generate(Object.assign({}, base, {sizes:{2:6}})), gr2 = gr.bodies.filter(function(b){ return b.id === 'p2'; })[0];
+check('A giant size on a rocky planet is ignored', !gr2.sizeSet && gr2.sizeClass === p2a.sizeClass);
+check('A rocky size (Tiny) on a giant is ignored', gz5.ggClass === (g0.bodies.filter(function(b){ return b.id === 'p5'; })[0].ggClass) && !gz5.sizeSet);
+var hs = S.generate(Object.assign({}, base, {sizes:{1:0, 2:0, 3:0, 4:0}})), homeS = hs.bodies.filter(function(b){ return b.home; })[0];
+check('A home world made Tiny is typed by temperature and a note says so', homeS && homeS.sizeClass === 'Tiny' && /too small to hold/.test(hs.notes.join(' ')), homeS && homeS.worldType);
+var cfgS = S.normalise({star:'G', seed:5, sizes:{3:2, 1:0, 99:1, 2:7, 4:'x', 0:1, 5:6}});
+check('Bad size entries are dropped when a config is cleaned up', JSON.stringify(cfgS.sizes) === '{"1":0,"3":2,"5":6}', JSON.stringify(cfgS.sizes));
+var link = S.encodeCfg(cfgS);
+check('Sizes survive a share link round trip', JSON.stringify(S.decodeCfg(link).sizes) === JSON.stringify(cfgS.sizes) && /\.1x0_3x2_5x6$/.test(link), link);
+check('A config with no sizes ends in a dash', /\.-$/.test(S.encodeCfg({star:'G', seed:5})));
+check('Malformed size fields are refused', ['4.G.0.46.4.4.1.1.3.hz.c.n.5.1x7', '4.G.0.46.4.4.1.1.3.hz.c.n.5.x', '4.G.0.46.4.4.1.1.3.hz.c.n.5.1x1_', '4.G.0.46.4.4.1.1.3.hz.c.n.5'].every(function(t){ return S.decodeCfg(t) === null; }));
 
 console.log(failed ? '\n' + failed + ' of ' + results.length + ' FAILED' : '\nAll ' + results.length + ' checks passed.');
 process.exit(failed ? 1 : 0);

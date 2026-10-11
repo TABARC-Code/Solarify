@@ -979,6 +979,7 @@ function zoneText(a){
 var liveEls = {};
 function kc(k){ return fmtNum(k) + ' K (' + fmtNum(k - 273.15) + ' °C)'; }
 function showSelected(b){
+  updateSizeRow(b);
   var custom = sys.mode === 'custom', primary = byId.sun;
   var pair = custom && sys.binary && sys.binary.regime === 'P';
   $('selName').textContent = b.name + (b.home ? ' (Home)' : ''); $('selKind').textContent = b.kind;
@@ -1552,11 +1553,11 @@ function loadSystem(def){
 /* ------------------------------------------------------------------
    15. The "Build your own" form
 ------------------------------------------------------------------ */
-var CFG_KEY = 'solarify.cfg';
+var CFG_KEY = 'solarify.cfg', curSizes = {};   // curSizes: per-planet size overrides, kept apart from the form controls
 function randomSeed(){ return 1 + Math.floor(Math.random() * 99999); }
 function formCfg(){
   return SYS.normalise({star:$('fStar').value, mass:+$('fMass').value, age:+$('fAge').value, inner:+$('fInner').value, outer:+$('fOuter').value, belts:+$('fBelts').value,
-    moonsInner:+$('fMoonsInner').value, moonsOuter:+$('fMoonsOuter').value, home:$('fHome').value, giants:$('fGiants').value, companion:$('fCompanion').value, seed:+$('fSeed').value});
+    moonsInner:+$('fMoonsInner').value, moonsOuter:+$('fMoonsOuter').value, home:$('fHome').value, giants:$('fGiants').value, companion:$('fCompanion').value, seed:+$('fSeed').value, sizes:curSizes});
 }
 function updateOutputs(){
   $('oMass').textContent = fmtNum(+$('fMass').value / 100, 2) + ' × Sun';
@@ -1566,6 +1567,7 @@ function updateOutputs(){
 }
 var giantMoonsTouched = false, buildTimer = 0;
 function setForm(c){
+  curSizes = c.sizes || {};
   giantMoonsTouched = c.moonsOuter !== Math.min(8, 2 * c.moonsInner);
   $('fStar').value = c.star; $('fHome').value = c.home; $('fSeed').value = c.seed; $('fGiants').value = c.giants; $('fCompanion').value = c.companion;
   $('fMass').value = c.star === 'X' ? c.mass : 100; $('fAge').value = c.age;
@@ -1596,6 +1598,33 @@ function onFormChange(e){
   ids.forEach(function(id){ $(id).addEventListener('input', updateOutputs); $(id).addEventListener('change', onFormChange); });
 })();
 
+/* Per-planet size: a class picker in the Selected section. Auto means whatever the rules rolled. */
+var SIZE_NAMES = {rocky:['Tiny', 'Small', 'Standard', 'Large'], giant:['Small', 'Medium', 'Large']};
+function sizeSlot(b){ return /^p(\d+)$/.test(b.id) ? +RegExp.$1 : 0; }
+function updateSizeRow(b){
+  var row = $('sizeRow'), ok = sys && sys.mode === 'custom' && !b.isStar && !b.isMoon && sizeSlot(b) > 0;
+  row.hidden = !ok; if (!ok) return;
+  var sel = $('sizeSel'), names = b.giant ? SIZE_NAMES.giant : SIZE_NAMES.rocky;
+  sel.textContent = '';
+  var auto = document.createElement('option'); auto.value = 'auto'; auto.textContent = 'Auto (' + b.sizeAuto + ')'; sel.appendChild(auto);
+  names.forEach(function(n, i){
+    var o = document.createElement('option'); o.value = String(b.giant ? i + 4 : i); o.textContent = n + (b.giant ? ' giant' : ''); sel.appendChild(o);
+  });
+  var cls = b.giant ? b.ggClass : b.sizeClass;
+  sel.value = b.sizeSet ? String(names.indexOf(cls) + (b.giant ? 4 : 0)) : 'auto';
+  $('sizeMsg').textContent = b.giant
+    ? 'Changes this giant\'s size class. Its mass, density, diameter and moons follow.'
+    : 'Changes this planet\'s size class. Type, atmosphere, gravity, temperature, resources and moons are worked out again for the new size. The other planets stay as they are.';
+}
+$('sizeSel').addEventListener('change', function(){
+  var b = byId[state.focus], slot = b ? sizeSlot(b) : 0;
+  if (!slot || !sys || sys.mode !== 'custom') return;
+  var sizes = {}; Object.keys(curSizes).forEach(function(k){ sizes[k] = curSizes[k]; });
+  if (this.value === 'auto') delete sizes[slot]; else sizes[slot] = +this.value;
+  var id = b.id, cfg = formCfg(); cfg.sizes = sizes; clearTimeout(buildTimer);
+  generateSystem(SYS.normalise(cfg), true);
+  if (byId[id]) focusOn(id);
+});
 function describe(g){
   var c = g.counts, hz = g.hz, plural = function(n, one, many){ return n + ' ' + (n === 1 ? one : many); };
   var parts = [plural(c.rocky, 'rocky planet', 'rocky planets'), plural(c.giants, 'giant', 'giants')];
@@ -1636,7 +1665,7 @@ function setMode(m){
 }
 $('modeSol').addEventListener('click', function(){ if (sys.mode !== 'sol') showSolar(); });
 $('modeBuild').addEventListener('click', function(){ if (sys.mode !== 'custom') generateSystem(formCfg()); });
-$('fRoll').addEventListener('click', function(){ clearTimeout(buildTimer); $('fSeed').value = randomSeed(); generateSystem(formCfg()); });
+$('fRoll').addEventListener('click', function(){ clearTimeout(buildTimer); curSizes = {}; $('fSeed').value = randomSeed(); generateSystem(formCfg()); });
 $('fCopy').addEventListener('click', function(){
   var url = location.href;
   function fallback(){ toast('Copy it from the address bar: ' + url); }
@@ -1699,7 +1728,7 @@ window.addEventListener('resize', function(){ layoutView(); if (state.overview) 
 
 // A small handle, mainly so the maths can be checked from the console and the tests.
 window.solarify = {
-  version: '0.3.0',
+  version: '0.4.0',
   positionsAU: function(when){
     var jd = typeof when === 'number' ? when : jdFromDate(new Date(when)), T = centuries(jd), out = {};
     PLANETS.forEach(function(b){
