@@ -78,12 +78,12 @@ var sys = null;        // the system on screen right now
 
 var SPEEDS = [
   {days:1 / 86400, label:'Real time'},
-  {days:1 / 24,    label:'1 hour per second'},
-  {days:1,         label:'1 day per second'},
-  {days:10,        label:'10 days per second'},
-  {days:30.4375,   label:'1 month per second'},
-  {days:91.3125,   label:'3 months per second'},
-  {days:365.25,    label:'1 year per second'}
+  {days:1 / 24,    label:'1 hour/s'},
+  {days:1,         label:'1 day/s'},
+  {days:10,        label:'10 days/s'},
+  {days:30.4375,   label:'1 month/s'},
+  {days:91.3125,   label:'3 months/s'},
+  {days:365.25,    label:'1 year/s'}
 ];
 
 /* ------------------------------------------------------------------
@@ -539,7 +539,7 @@ function createBody(b){
   universe.add(b.group);
 
   b.label = document.createElement('button');
-  b.label.className = 'label'; b.label.textContent = b.name + (b.home ? ' (Home)' : ''); b.label.tabIndex = -1;
+  b.label.className = 'tag'; b.label.textContent = b.name + (b.home ? ' (Home)' : ''); b.label.tabIndex = -1;
   b.label.setAttribute('aria-hidden', 'true');
   b.label.addEventListener('click', function(){ focusOn(b.id); });
   labelsEl.appendChild(b.label);
@@ -769,7 +769,7 @@ function makeBelts(){
     var pts = new THREE.Points(g, new THREE.PointsMaterial({size:1.7, sizeAttenuation:false, color:bd.icy ? 0xb9c8d4 : 0xb8a58c, transparent:true, opacity:0.8, depthWrite:false}));
     pts.frustumCulled = false;
     var grp = new THREE.Group(); grp.add(pts); beltRoot.add(grp);
-    var label = document.createElement('div'); label.className = 'label belt'; label.textContent = bd.label || 'Asteroid belt'; label.setAttribute('aria-hidden', 'true');
+    var label = document.createElement('div'); label.className = 'tag belt'; label.textContent = bd.label || 'Asteroid belt'; label.setAttribute('aria-hidden', 'true');
     labelsEl.appendChild(label);
     BELTS.push({def:bd, au:au, points:pts, group:grp, label:label, labelW:0});
   });
@@ -838,7 +838,7 @@ function updateCamera(dt){
 var sizeW = 0, sizeH = 0, started = false;
 function layoutView(){
   var W = stage.clientWidth || 1, H = stage.clientHeight || 1;
-  var panel = $('panel'), r = panel.getBoundingClientRect(), shiftX = 0, shiftY = 0, vw = W, vh = H;
+  var panel = $('drawer'), r = panel.getBoundingClientRect(), shiftX = 0, shiftY = 0, vw = W, vh = H;
   if (window.innerWidth >= 820){ vw = Math.max(1, r.left); shiftX = (W - vw) / 2; }
   else { vh = Math.max(1, r.top); shiftY = (H - vh) / 2; }
   if (sizeW !== W || sizeH !== H){ renderer.setSize(W, H); sizeW = W; sizeH = H; }
@@ -934,6 +934,7 @@ function focusOn(id, opts){
   camera3.targetDist = opts.overview ? overviewDist() : defaultDist(b);
   if (opts.overview) camera3.phi = 0.5;
   refreshBodyButtons();
+  $('rFocus').textContent = opts.overview ? 'Whole system' : b.name;
   $('overview').setAttribute('aria-pressed', String(!!opts.overview));
   showSelected(b);
 }
@@ -1087,7 +1088,7 @@ function buildBodyList(){
   BODIES.forEach(function(b){
     if (b.isMoon) return;
     var btn = document.createElement('button');
-    btn.className = 'btn'; btn.dataset.id = b.id; btn.setAttribute('aria-pressed', 'false');
+    btn.className = 'action'; btn.dataset.id = b.id; btn.setAttribute('aria-pressed', 'false');
     btn.textContent = sys.mode === 'custom' && !b.isStar ? b.short + ', ' + (b.giant ? 'giant' : 'rocky') + (b.home ? ' (home)' : '') : b.name;
     btn.title = b.name + (b.kind ? ', ' + b.kind.toLowerCase() : '');
     btn.setAttribute('aria-label', b.name + (b.home ? ' (home world)' : ''));
@@ -1097,14 +1098,14 @@ function buildBodyList(){
 }
 function refreshBodyButtons(){
   var f = byId[state.focus], parent = f.isMoon ? f.parentBody : f, ms = (parent && parent.moonBodies) || [], ml = $('moonList');
-  document.querySelectorAll('#bodyList .btn').forEach(function(btn){ btn.setAttribute('aria-pressed', String(btn.dataset.id === state.focus)); });
+  document.querySelectorAll('#bodyList .action').forEach(function(btn){ btn.setAttribute('aria-pressed', String(btn.dataset.id === state.focus)); });
   ml.textContent = '';
   $('moonWrap').hidden = !ms.length;
   if (ms.length){
     $('moonLabel').textContent = 'Moons of ' + parent.name;
     ms.forEach(function(m){
       var btn = document.createElement('button');
-      btn.className = 'btn'; btn.dataset.id = m.id; btn.textContent = m.short || m.name; btn.title = m.name; btn.setAttribute('aria-label', m.name);
+      btn.className = 'action'; btn.dataset.id = m.id; btn.textContent = m.short || m.name; btn.title = m.name; btn.setAttribute('aria-label', m.name);
       btn.setAttribute('aria-pressed', String(m.id === state.focus));
       btn.addEventListener('click', function(){ focusOn(m.id); });
       ml.appendChild(btn);
@@ -1177,12 +1178,13 @@ function pickAt(cx, cy){
 function setSpeed(i, keepSaved){
   state.speedIdx = clamp(i, 0, SPEEDS.length - 1);
   $('speed').value = state.speedIdx;
-  $('speedLabel').textContent = SPEEDS[state.speedIdx].label;
+  $('speedLabel').textContent = SPEEDS[state.speedIdx].label; $('rSpeed').textContent = state.paused ? 'Paused' : SPEEDS[state.speedIdx].label;
   if (!keepSaved && sys && sys.mode === 'sol'){ solarSpeedIdx = state.speedIdx; saveView(); }
 }
 function setPaused(p){
   state.paused = p;
   var btn = $('playPause'); btn.textContent = p ? 'Play' : 'Pause'; btn.setAttribute('aria-pressed', String(p));
+  $('rSpeed').textContent = p ? 'Paused' : SPEEDS[state.speedIdx].label;
 }
 function setDir(d){
   state.dir = d; var btn = $('reverse'); btn.setAttribute('aria-pressed', String(d < 0));
@@ -1222,14 +1224,27 @@ $('distSqueezed').addEventListener('click', function(){ setScaleMode('trueDist',
 $('distTrue').addEventListener('click', function(){ setScaleMode('trueDist', true, ['distSqueezed', 'distTrue']); });
 $('sizeBig').addEventListener('click', function(){ setScaleMode('trueSize', false, ['sizeBig', 'sizeTrue']); });
 $('sizeTrue').addEventListener('click', function(){ setScaleMode('trueSize', true, ['sizeBig', 'sizeTrue']); });
-
-/* Panel as a bottom sheet on phones */
-$('handle').addEventListener('click', function(){
-  var open = !$('panel').classList.contains('open');
-  $('panel').classList.toggle('open', open);
-  this.setAttribute('aria-expanded', String(open));
-  this.lastElementChild.textContent = open ? '−' : '+';
+$('resetView').addEventListener('click', function(){ focusOn('sun', {overview:true}); toast('View reset.'); });
+$('resetDisplay').addEventListener('click', function(){
+  setToggle('tOrbits', 'orbits', true); setToggle('tLabels', 'labels', true); setToggle('tStars', 'stars', true); setToggle('tZone', 'zone', true);
+  applyVisibility();
+  setScaleMode('trueDist', false, ['distSqueezed', 'distTrue']); setScaleMode('trueSize', false, ['sizeBig', 'sizeTrue']);
+  toast('Display reset.');
 });
+
+/* Drawer: a right-hand column on wide screens, a bottom sheet with a handle below that */
+var drawer = $('drawer'), handleEl = $('handle');
+function syncDrawer(){
+  var wide = window.innerWidth >= 820, closed = !wide && drawer.classList.contains('closed');
+  handleEl.setAttribute('aria-expanded', String(!closed));
+  var h = wide ? 0 : drawer.getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--drawer-h', wide ? '62px' : Math.round(Math.min(h, window.innerHeight * 0.66)) + 'px');
+}
+handleEl.addEventListener('click', function(){ drawer.classList.toggle('closed'); syncDrawer(); });
+if (window.innerWidth < 820) drawer.classList.add('closed');
+window.addEventListener('resize', syncDrawer);
+if (window.ResizeObserver) new ResizeObserver(syncDrawer).observe(drawer);
+syncDrawer();
 
 /* Toast */
 var toastTimer = 0;
@@ -1371,16 +1386,21 @@ function loadMapFiles(fileList, start){
   });
 }
 function loadMapFile(f){ if (f) loadMapFiles([f], byId[state.focus]); }
-$('mapBtn').addEventListener('click', function(){ $('mapFile').click(); });
 $('mapFile').addEventListener('change', function(){ var files = Array.prototype.slice.call(this.files); this.value = ''; if (files.length) loadMapFiles(files, byId[state.focus]); });
 $('mapFile').multiple = true;
 $('mapReset').addEventListener('click', function(){ resetMap(byId[state.focus]); });
 $('mapsClear').addEventListener('click', clearAllMaps);
+// Paste an image straight onto the selected body
+window.addEventListener('paste', function(e){
+  var items = (e.clipboardData && e.clipboardData.files) || [];
+  var imgs = Array.prototype.filter.call(items, function(f){ return /^image\//.test(f.type); });
+  if (imgs.length){ e.preventDefault(); loadMapFiles(imgs, byId[state.focus]); }
+});
 
 // Drag an image over a body and the page says which one it will dress; drop it there. Dropped anywhere else, it dresses the selected body.
 var dropHint = $('dropHint'), pausedByDrag = false, dragTimer = 0;
 function endDragPause(){
-  clearTimeout(dragTimer); dropHint.hidden = true;
+  clearTimeout(dragTimer); dropHint.hidden = true; $('mapBtn').classList.remove('hot');
   if (pausedByDrag){ pausedByDrag = false; setPaused(false); }
 }
 function hasFiles(e){ return !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0); }
@@ -1391,6 +1411,7 @@ function hasFiles(e){ return !!(e.dataTransfer && Array.prototype.indexOf.call(e
     if (!state.paused){ pausedByDrag = true; setPaused(true); }        // hold still, so the planet you are aiming at stays put
     clearTimeout(dragTimer); dragTimer = setTimeout(endDragPause, 600);   // if the drag is abandoned, carry on
     var b = bodyAt(e.clientX, e.clientY) || byId[state.focus];
+    $('mapBtn').classList.add('hot'); $('projOpen').classList.remove('hot');
     dropHint.hidden = false; dropHint.textContent = 'Drop to dress ' + b.name;
     dropHint.style.left = e.clientX + 'px'; dropHint.style.top = e.clientY + 'px';
   });
@@ -1418,7 +1439,6 @@ $('projSave').addEventListener('click', function(){
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
   toast('Saved ' + a.download + (maps.length ? ' with ' + maps.length + (maps.length === 1 ? ' image.' : ' images.') : '.'));
 });
-$('projOpen').addEventListener('click', function(){ $('projFile').click(); });
 $('projFile').addEventListener('change', function(){
   var f = this.files[0]; this.value = ''; if (!f) return;
   if (f.size > 80 * 1024 * 1024){ toast('That file is too big to be a Solarify project.'); return; }

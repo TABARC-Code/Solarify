@@ -4,289 +4,420 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Solarify</title>
-<meta name="description" content="A solar system you can spin, speed up and re-skin in your browser, or build your own: pick the star, the planets, the moons and where your home world sits. One HTML file, no upload, no install.">
-<meta name="theme-color" content="#0A0F1C">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%230A0F1C'/><ellipse cx='32' cy='32' rx='26' ry='11' fill='none' stroke='%236FA294' stroke-width='2' transform='rotate(-20 32 32)'/><circle cx='32' cy='32' r='8' fill='%23E8B04A'/><circle cx='52' cy='24' r='4' fill='%234F8FD0'/></svg>">
+<meta name="description" content="A solar system you can spin, speed up and re-skin in your browser, or build your own: pick the star, the planets, the moons and where your home world sits. Drop your own images on any body. One HTML file, no upload, no install.">
+<meta name="theme-color" content="#0C1220">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%230C1220'/><ellipse cx='32' cy='32' rx='26' ry='11' fill='none' stroke='%236FA294' stroke-width='2' transform='rotate(-20 32 32)'/><circle cx='32' cy='32' r='8' fill='%23E8B04A'/><circle cx='52' cy='24' r='4' fill='%234F8FD0'/></svg>">
 <style>
+/*FONTS*/
+  /* Same design system as Globify: a dark stage, a warm control drawer, Spectral for the title, IBM Plex Mono for
+     readouts, Atkinson Hyperlegible for anything you have to read twice. The fonts are embedded, so no network. */
   :root{
-    --void:#0A0F1C; --panel:#141B2B; --panel-hi:#1B2438;
-    --ink:#EDE6D6; --muted:#A99F8A; --brass:#C89B4A; --brass-dim:#7A6030;
-    --verdigris:#6FA294; --rule:rgba(200,155,74,.26);
-    --panel-w:340px;
-    --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --void:#0C1220;
+    --panel:#141C2E;
+    --panel-hi:#1D2740;
+    --brass:#C89B4A;
+    --brass-dim:#8A6C33;
+    --verdigris:#6FA294;
+    --bone:#E8E2D4;
+    --dim:#6C7891;
+    --rule:rgba(200,155,74,.28);
+    --drawer-ink:#F7F0E3;
+    --drawer-muted:#C9BDA8;
+    --drawer-rule:rgba(232,204,151,.24);
+    --sans:'Atkinson Hyperlegible',Arial,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
   }
-  *{box-sizing:border-box}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--void);color:var(--bone);font-family:'Spectral',Georgia,serif;overflow:hidden;-webkit-font-smoothing:antialiased}
   [hidden]{display:none!important}
-  html,body{margin:0;height:100%;background:var(--void);color:var(--ink);font-family:var(--font);overflow:hidden}
   :focus-visible{outline:2px solid var(--verdigris);outline-offset:2px}
   button{font:inherit;color:inherit}
+  .label{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 
+  /* ---------- stage ---------- */
   #stage{position:fixed;inset:0}
   #stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
   #stage canvas.dragging{cursor:grabbing}
 
-  #hud{position:fixed;top:0;left:0;padding:18px 20px;pointer-events:none;z-index:3}
-  #hud h1{margin:0;font:italic 400 clamp(22px,5vw,30px)/1 Georgia,"Times New Roman",serif;letter-spacing:.005em}
-  #dateText{margin-top:8px;font:500 15px/1.3 var(--mono);color:var(--brass);letter-spacing:.02em}
-  #rangeNote{margin-top:4px;max-width:30ch;font-size:12.5px;line-height:1.35;color:var(--muted)}
+  /* ---------- title lockup ---------- */
+  #lockup{position:fixed;top:0;left:0;right:0;padding:18px 20px 0;pointer-events:none;z-index:3}
+  #lockup h1{font-weight:400;font-style:italic;font-size:clamp(19px,5vw,26px);line-height:1;letter-spacing:.005em;color:var(--bone)}
+  #sysName{margin-top:7px;font-style:italic;font-size:15px;line-height:1.2;color:var(--verdigris)}
+  #rangeNote{margin-top:6px;max-width:32ch;font-family:var(--sans);font-size:12.5px;line-height:1.35;color:var(--dim)}
 
+  /* ---------- names floating over the bodies ---------- */
   #labels{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
-  .label{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;white-space:nowrap;
-    background:rgba(10,15,28,.55);border:1px solid transparent;color:var(--ink);
-    padding:2px 7px;font-size:12px;border-radius:3px;transform:translate(-9999px,-9999px);will-change:transform}
-  .label:hover,.label.selected{border-color:var(--brass);color:#fff}
-  .label.belt{pointer-events:none;cursor:default;color:var(--muted);font-style:italic;background:rgba(10,15,28,.35)}
-  .label.selected{background:rgba(200,155,74,.22)}
+  .tag{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;white-space:nowrap;
+    background:rgba(12,18,32,.55);border:1px solid transparent;color:var(--bone);
+    padding:2px 7px;font-family:var(--sans);font-size:12px;border-radius:3px;transform:translate(-9999px,-9999px);will-change:transform}
+  .tag:hover,.tag.selected{border-color:var(--brass);color:#fff}
+  .tag.selected{background:rgba(200,155,74,.22)}
+  .tag.belt{pointer-events:none;cursor:default;color:var(--dim);font-style:italic;background:rgba(12,18,32,.35)}
 
-  /* ---------- panel ---------- */
-  #panel{position:fixed;top:0;right:0;bottom:0;width:var(--panel-w);z-index:5;overflow-y:auto;
-    background:linear-gradient(to bottom,rgba(27,36,56,.97),rgba(20,27,43,.985));
-    border-left:1px solid var(--rule);padding:0 18px 28px}
-  #handle{display:none}
-  .group{border-top:1px solid var(--rule)}
-  .group:first-of-type{border-top:none}
+  /* ---------- readout bezel ---------- */
+  #readout{
+    position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(var(--drawer-h,62px) + 16px);
+    display:flex;align-items:stretch;
+    border:1px solid var(--rule);background:rgba(12,18,32,.72);
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    z-index:3;pointer-events:none;max-width:calc(100vw - 24px);
+    transition:bottom .3s cubic-bezier(.2,.7,.2,1);
+  }
+  #readout > div{padding:7px 13px;min-width:0}
+  #readout > div + div{border-left:1px solid var(--rule)}
+  #readout .val{font-family:var(--mono);font-size:13px;letter-spacing:.06em;color:var(--brass);font-variant-numeric:tabular-nums;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34ch}
+  #readout .cap{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);font-family:var(--mono);margin-bottom:3px}
+
+  /* ---------- drawer ---------- */
+  #drawer{
+    position:fixed;left:0;right:0;bottom:0;z-index:4;
+    /* Keep the workshop visibly separate from the night sky behind it. */
+    background:linear-gradient(to bottom,rgba(53,48,41,.985),rgba(39,35,31,.995));
+    color:var(--drawer-ink);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border-top:1px solid var(--rule);
+    padding:0 16px calc(16px + env(safe-area-inset-bottom));
+    max-height:66vh;overflow-y:auto;
+    transition:transform .3s cubic-bezier(.2,.7,.2,1);
+  }
+  #drawer.closed{transform:translateY(calc(100% - 46px))}
+  #handle{
+    display:flex;align-items:center;gap:10px;height:46px;cursor:pointer;user-select:none;
+    position:sticky;top:0;margin:0 -16px;padding:0 16px;z-index:2;
+    background:linear-gradient(to bottom,rgba(61,55,47,.995),rgba(48,42,36,.995));
+  }
+  #handle .grip{width:26px;height:1px;background:var(--brass-dim)}
+  #handle .chev{margin-left:auto;width:8px;height:8px;border-left:1.5px solid var(--brass);border-top:1.5px solid var(--brass);
+    transform:rotate(45deg) translate(2px,2px);transition:transform .3s}
+  #drawer.closed #handle .chev{transform:rotate(225deg) translate(2px,2px)}
+  #drawer .label{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.08em;color:var(--drawer-muted)}
+
+  .row{padding:14px 0;border-top:1px solid rgba(200,155,74,.14)}
+  .row:first-of-type{border-top:none}
+  .row > .label{display:block;margin-bottom:9px}
+  /* Collapsible sections. Native <details>, so keyboard and screen readers get it for free. */
+  .group{border-top:1px solid var(--drawer-rule)}
   .group summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
-    padding:15px 0;font-weight:700;font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--brass)}
+    padding:15px 0;font-family:var(--sans);font-weight:700;font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--brass)}
   .group summary::-webkit-details-marker{display:none}
-  .group summary::after{content:'+';font-size:18px;line-height:1;color:var(--muted)}
+  .group summary::after{content:'+';font-size:18px;line-height:1;color:var(--drawer-muted)}
   .group[open] summary::after{content:'\2212'}
-  .group > :not(summary){margin-bottom:14px}
-  .label-t{display:block;margin-bottom:7px;font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-  .hint{margin:8px 0 0;font-size:13.5px;line-height:1.45;color:var(--muted)}
+  .group summary:hover::after{color:var(--brass)}
+  .group .row:first-of-type{border-top:1px solid rgba(200,155,74,.14)}
+  details.sub{margin:0;border:1px solid var(--drawer-rule);padding:0 12px}
+  details.sub summary{cursor:pointer;list-style:none;padding:11px 0;font-family:var(--sans);font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--drawer-muted)}
+  details.sub summary::-webkit-details-marker{display:none}
+  details.sub summary::after{content:'+';float:right;font-size:16px;line-height:1}
+  details.sub[open] summary::after{content:'\2212'}
+  details.sub[open] summary{border-bottom:1px solid var(--drawer-rule);margin-bottom:2px}
+  details.sub .row:first-of-type{border-top:none}
 
-  .btn{width:100%;padding:10px 12px;cursor:pointer;background:none;border:1px solid var(--rule);
-    color:var(--brass);font-weight:700;font-size:14px;text-align:center}
-  .btn:hover{background:rgba(200,155,74,.12)}
-  .btn[aria-pressed=true]{background:rgba(200,155,74,.2);border-color:var(--brass)}
-  .btn:disabled{opacity:.4;cursor:default}
-  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  .seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--rule)}
-  .seg .btn{border:none;border-right:1px solid var(--rule);color:var(--muted)}
-  .seg .btn:last-child{border-right:none}
-  .seg .btn[aria-pressed=true]{color:var(--brass)}
+  .hint{margin-top:8px;font-family:var(--sans);font-size:14px;color:var(--drawer-muted);line-height:1.45}
+  .advice{margin-top:9px;padding:9px 10px;border-left:2px solid var(--verdigris);background:rgba(111,162,148,.12);
+    font-family:var(--sans);font-size:14px;line-height:1.42;color:var(--drawer-ink)}
+  #sysNotes{list-style:none;margin:0;padding:0}
+  #sysNotes li{margin-top:7px;padding:8px 10px;border-left:2px solid var(--brass-dim);background:rgba(200,155,74,.08);
+    font-family:var(--sans);font-size:13.5px;line-height:1.4;color:var(--drawer-muted)}
 
-  input[type=range]{width:100%;accent-color:var(--brass);margin:6px 0 0}
-  #speedLabel{font:500 13px var(--mono);color:var(--brass)}
+  /* source button: a dashed target that also takes dropped files */
+  .buttonlike{
+    width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:13px;cursor:pointer;
+    border:1px dashed var(--brass-dim);background:rgba(255,244,220,.045);color:var(--drawer-ink);
+    font-family:var(--sans);font-size:15px;text-align:center;transition:background .18s,border-color .18s;
+  }
+  .buttonlike:hover,.buttonlike.hot{background:rgba(200,155,74,.18);border-color:var(--brass)}
+  input[type=file]{display:none}
 
-  #bodyList{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-  #bodyList .btn{padding:8px 6px;font-size:13.5px}
-  #sysName{margin-top:6px;font:italic 400 15px/1.2 Georgia,"Times New Roman",serif;color:var(--verdigris)}
-  select,input[type=number]{width:100%;padding:9px 10px;background:var(--panel-hi);border:1px solid var(--rule);color:var(--ink);font:inherit;font-size:14px;border-radius:0}
-  .field{margin:0 0 12px}
-  .field output{float:right;color:var(--brass);font:500 13px var(--mono);letter-spacing:0;text-transform:none}
-  details.sub{margin:0 0 12px;border:1px solid var(--rule);padding:0 12px}
-  details.sub summary{cursor:pointer;padding:10px 0;font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-  details.sub[open] summary{border-bottom:1px solid var(--rule);margin-bottom:12px}
-  .seedrow{display:grid;grid-template-columns:1fr 92px;gap:8px}
-  .btn.primary{background:rgba(200,155,74,.22);border-color:var(--brass);color:#fff;margin-bottom:8px}
-  #sysNotes{margin:8px 0 0;padding:0 0 0 18px;font-size:13px;line-height:1.4;color:var(--muted)}
-  #sysNotes li{margin:0 0 4px}
-  #sysSummary{margin-top:10px}
-  #dropHint{position:fixed;z-index:15;pointer-events:none;padding:6px 10px;background:rgba(20,27,43,.96);border:1px solid var(--brass);color:#fff;font-size:13px;transform:translate(14px,14px)}
+  /* segmented */
+  .seg{display:grid;grid-template-columns:repeat(2,1fr);border:1px solid var(--rule)}
+  .seg button{background:none;border:none;border-left:1px solid var(--rule);padding:10px 4px;cursor:pointer;color:var(--dim);
+    font-family:var(--sans);font-weight:700;font-size:12px;letter-spacing:.035em;transition:background .16s,color .16s}
+  .seg button:first-child{border-left:none}
+  .seg button[aria-pressed=true]{background:rgba(200,155,74,.16);color:var(--brass)}
+  .seg button:focus-visible{outline:2px solid var(--verdigris);outline-offset:-2px}
+
+  /* buttons */
+  .minirow{display:flex;gap:8px;flex-wrap:wrap}
+  .minirow button{flex:1;min-width:120px}
+  .gap{margin-top:9px}
+  .action{width:100%;padding:11px;cursor:pointer;background:none;border:1px solid var(--rule);color:var(--brass);
+    font-family:var(--sans);font-weight:700;font-size:13px;letter-spacing:.02em}
+  .action + .action,.row > .action,.hint + .action{margin-top:10px}
+  .minirow .action{margin-top:0}
+  .action:hover{background:rgba(200,155,74,.12)}
+  .action[aria-pressed=true]{background:rgba(200,155,74,.2);border-color:var(--brass)}
+  .action:disabled{opacity:.4;cursor:default}
+  .primary{width:100%;padding:12px;margin-top:2px;cursor:pointer;background:var(--brass);border:none;color:var(--void);
+    font-family:var(--sans);font-weight:700;font-size:14px;letter-spacing:.02em}
+  .primary:hover{filter:brightness(1.08)}
+  .primary:disabled{opacity:.35;cursor:default}
+
+  /* sliders, with the number to the right */
+  .slide{display:flex;align-items:center;gap:12px}
+  .slide .num{font-family:var(--mono);font-size:11px;color:var(--brass);min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
+  .slide .num.wide{min-width:118px}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:22px;background:none;cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:1px;background:var(--brass-dim)}
+  input[type=range]::-moz-range-track{height:1px;background:var(--brass-dim)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;margin-top:-6px;background:var(--brass);border-radius:50%}
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border:none;background:var(--brass);border-radius:50%}
+  input[type=range]:focus-visible{outline:2px solid var(--verdigris);outline-offset:4px}
+
+  /* selects and number boxes, as Globify's preset picker */
+  select,input[type=number]{width:100%;padding:9px 10px;background:rgba(255,244,220,.045);color:var(--drawer-ink);
+    border:1px solid var(--drawer-rule);font-family:var(--sans);font-size:14px;border-radius:0}
+  select option{background:#302A24;color:var(--drawer-ink)}
+  select:focus-visible,input[type=number]:focus-visible{outline:2px solid var(--verdigris);outline-offset:1px}
+  .seedrow{display:grid;grid-template-columns:1fr 104px;gap:8px}
+  .seedrow .action{margin-top:0}
+
+  /* toggles */
+  .toggles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .tog{display:flex;align-items:center;gap:9px;padding:10px 11px;cursor:pointer;border:1px solid var(--drawer-rule);
+    background:rgba(255,244,220,.025);color:var(--drawer-muted);font-family:var(--sans);font-weight:700;font-size:12px;letter-spacing:.035em;
+    transition:color .16s,border-color .16s;text-align:left}
+  .tog .dot{width:7px;height:7px;border:1px solid var(--brass-dim);flex:none;transition:background .16s}
+  .tog[aria-pressed=true]{color:var(--brass);border-color:var(--rule)}
+  .tog[aria-pressed=true] .dot{background:var(--brass);border-color:var(--brass)}
+  .tog:focus-visible{outline:2px solid var(--verdigris);outline-offset:-2px}
+
+  /* body lists and the selected body */
+  #bodyList,#moonList{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  #bodyList .action,#moonList .action{margin-top:0;padding:8px 6px;font-size:13px}
   #moonWrap{margin-top:12px}
-  #moonList{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-  #moonList .btn{padding:7px 6px;font-size:13px}
-  #selName{margin:0;font:italic 400 22px/1.15 Georgia,"Times New Roman",serif}
-  #selKind{margin:2px 0 10px;font-size:13px;color:var(--muted)}
-  #facts{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0 0 4px;font-size:13.5px;line-height:1.35}
-  #facts dt{color:var(--muted)}
-  #facts dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+  #moonWrap > .label{display:block;margin-bottom:8px}
+  #bodyList + .action,#moonWrap + .action{margin-top:12px}
+  #selName{font-weight:400;font-style:italic;font-size:22px;line-height:1.15;color:var(--drawer-ink)}
+  #selKind{margin:3px 0 10px;font-family:var(--sans);font-size:13px;color:var(--drawer-muted)}
+  #facts{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0 0 4px;font-family:var(--sans);font-size:13.5px;line-height:1.35}
+  #facts dt{color:var(--drawer-muted)}
+  #facts dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;color:var(--drawer-ink)}
   #facts .live{color:var(--brass)}
-  #factNote{font-size:12px;color:var(--muted);margin:6px 0 0}
+  #factNote{font-family:var(--sans);font-size:12px;color:var(--drawer-muted);margin-top:6px;line-height:1.4}
 
-  #help,#toastWrap{position:fixed;z-index:20}
-  #help{inset:0;display:flex;align-items:center;justify-content:center;padding:24px;
-    background:rgba(10,15,28,.92);backdrop-filter:blur(6px)}
-  #help .card{width:100%;max-width:440px;background:var(--panel);border:1px solid var(--rule);padding:20px}
-  #help h2{margin:0 0 6px;font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--brass)}
-  #help dl{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;margin:14px 0 16px;font-size:14px;line-height:1.35}
+  /* ---------- overlays ---------- */
+  #help{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+    background:rgba(12,18,32,.93);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:24px;overflow-y:auto}
+  #help .card{width:100%;max-width:440px;border:1px solid var(--rule);background:var(--panel);padding:20px}
+  #help dl{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;margin:14px 0 4px;font-family:var(--sans);font-size:14px;line-height:1.35;color:var(--bone)}
   #help dt{color:var(--brass);font-weight:700}
-  #help dd{margin:0;color:var(--muted)}
-  kbd{font:12px var(--mono);border:1px solid var(--rule);padding:0 5px;color:var(--ink)}
-  #toastWrap{left:50%;bottom:20px;transform:translateX(-50%);pointer-events:none;max-width:min(92vw,520px)}
-  #toast{background:rgba(20,27,43,.96);border:1px solid var(--rule);padding:9px 14px;font-size:14px;
+  #help dd{margin:0;color:var(--dim)}
+  #help kbd,kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--rule);padding:0 5px;color:var(--bone)}
+  #helpClose{width:100%;margin-top:10px;padding:11px;cursor:pointer;background:none;border:1px solid var(--rule);color:var(--dim);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase}
+  #helpClose:hover{border-color:var(--brass);color:var(--bone)}
+  #dropHint{position:fixed;z-index:15;pointer-events:none;padding:6px 10px;background:rgba(12,18,32,.96);border:1px solid var(--brass);
+    color:#fff;font-family:var(--sans);font-size:13px;transform:translate(14px,14px)}
+  #toastWrap{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:20;pointer-events:none;max-width:min(92vw,520px)}
+  #toast{background:rgba(12,18,32,.94);border:1px solid var(--rule);padding:9px 14px;font-family:var(--sans);font-size:14px;color:var(--bone);
     opacity:0;transition:opacity .25s}
   #toast.show{opacity:1}
-  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
-  /* ---------- phones: panel becomes a bottom sheet ---------- */
-  @media(max-width:819px){
-    #panel{top:auto;left:0;right:0;width:auto;max-height:62vh;border-left:none;border-top:1px solid var(--rule);
-      padding-bottom:max(24px,env(safe-area-inset-bottom));transform:translateY(calc(100% - 50px));transition:transform .3s}
-    #panel.open{transform:none}
-    #handle{display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:2;
-      width:calc(100% + 36px);margin:0 -18px;height:50px;
-      background:var(--panel);border:none;border-bottom:1px solid var(--rule);color:var(--brass);cursor:pointer;
-      padding:0 20px;font-weight:700;font-size:13px;letter-spacing:.09em;text-transform:uppercase}
-    #hud{padding:14px 16px}
-    #toastWrap{bottom:64px}
+  @media(min-width:820px){
+    #drawer{left:auto;right:0;top:0;bottom:0;width:330px;border-top:none;border-left:1px solid var(--rule);max-height:none;padding-top:0;transform:none!important}
+    #drawer.closed{transform:none}
+    #handle{display:none}
+    #readout{left:auto;right:354px;transform:none;bottom:24px}
+    #lockup{right:346px}
   }
+  @media(max-width:560px){ #readout > div:nth-child(3){display:none} }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 <div id="stage"></div>
 
-<div id="hud">
+<div id="lockup">
   <h1>Solarify</h1>
   <div id="sysName" hidden></div>
-  <div id="dateText" aria-live="off">—</div>
   <div id="rangeNote" hidden>Outside 1800 to 2050 the NASA formula behind these positions is only a rough guide.</div>
 </div>
 
 <div id="labels"></div>
 
-<aside id="panel" aria-label="Controls">
-  <button id="handle" aria-expanded="false" aria-controls="panelBody"><span>Controls</span><span aria-hidden="true">+</span></button>
-  <div id="panelBody">
+<div id="readout">
+  <div><div class="cap" id="capDate">Date</div><div class="val" id="dateText" aria-live="off">—</div></div>
+  <div><div class="cap">Speed</div><div class="val" id="rSpeed">—</div></div>
+  <div><div class="cap">Looking at</div><div class="val" id="rFocus">—</div></div>
+</div>
 
-    <details class="group" id="sec-system" open>
-      <summary>System</summary>
+<div id="drawer" class="closed">
+  <div id="handle" role="button" tabindex="0" aria-expanded="false" aria-controls="drawer">
+    <span class="grip"></span>
+    <span class="label">Controls</span>
+    <span class="chev" aria-hidden="true"></span>
+  </div>
+
+  <details class="group" id="sec-system" open>
+    <summary><span>System</span></summary>
+    <div class="row">
+      <span class="label">Which system</span>
       <div class="seg" role="group" aria-label="Which system">
-        <button class="btn" id="modeSol" aria-pressed="true">Our Solar System</button>
-        <button class="btn" id="modeBuild" aria-pressed="false">Build your own</button>
+        <button id="modeSol" aria-pressed="true">Our Solar System</button>
+        <button id="modeBuild" aria-pressed="false">Build your own</button>
       </div>
-      <div id="buildForm" hidden>
-        <div class="field"><label class="label-t" for="fStar">Star</label><select id="fStar"></select></div>
-        <div class="field"><label class="label-t" for="fInner">Rocky planets <output id="oInner" for="fInner">4</output></label>
-          <input type="range" id="fInner" min="0" max="8" step="1" value="4"></div>
-        <div class="field"><label class="label-t" for="fOuter">Giant planets <output id="oOuter" for="fOuter">4</output></label>
-          <input type="range" id="fOuter" min="0" max="8" step="1" value="4"></div>
-        <div class="field"><label class="label-t" for="fMoonsInner">Moons per planet <output id="oMoonsInner" for="fMoonsInner">1</output></label>
-          <input type="range" id="fMoonsInner" min="0" max="4" step="1" value="1"></div>
-        <div class="field"><label class="label-t" for="fHome">Your home world</label><select id="fHome">
+    </div>
+    <div id="buildForm" hidden>
+      <div class="row"><span class="label">Star</span><select id="fStar" aria-label="Star"></select></div>
+      <div class="row"><span class="label">Rocky planets</span>
+        <div class="slide"><input type="range" id="fInner" min="0" max="8" step="1" value="4" aria-label="Rocky planets"><span class="num" id="oInner">4</span></div></div>
+      <div class="row"><span class="label">Giant planets</span>
+        <div class="slide"><input type="range" id="fOuter" min="0" max="8" step="1" value="4" aria-label="Giant planets"><span class="num" id="oOuter">4</span></div></div>
+      <div class="row"><span class="label">Moons per planet</span>
+        <div class="slide"><input type="range" id="fMoonsInner" min="0" max="4" step="1" value="1" aria-label="Moons per planet"><span class="num" id="oMoonsInner">1</span></div></div>
+      <div class="row"><span class="label">Your home world</span>
+        <select id="fHome" aria-label="Your home world">
           <option value="hz">In the habitable zone</option>
           <option value="hot">Too close: inside the zone</option>
           <option value="cold">Too far: beyond the zone</option>
           <option value="none">No home world</option></select></div>
-        <button class="btn primary" id="fRoll">Roll a new system</button>
-        <p class="hint" id="sysSummary" aria-live="polite"></p>
+      <div class="row">
+        <button class="primary" id="fRoll">Roll a new system</button>
+        <p class="advice" id="sysSummary" aria-live="polite">Pick a star and I'll build it. Any image you drop on a planet stays on it.</p>
         <ul id="sysNotes"></ul>
-        <p class="hint">Drop an image on any planet to dress it. Several images dress several planets in order.</p>
+      </div>
+      <div class="row">
         <details class="sub" id="advanced">
           <summary>More options</summary>
-          <div class="field" id="massRow" hidden><label class="label-t" for="fMass">Star mass <output id="oMass" for="fMass">1.00 × Sun</output></label>
-            <input type="range" id="fMass" min="10" max="1000" step="5" value="100"></div>
-          <div class="field"><label class="label-t" for="fAge">System age <output id="oAge" for="fAge">4.6 billion years</output></label>
-            <input type="range" id="fAge" min="0" max="120" step="1" value="46"></div>
-          <div class="field"><label class="label-t" for="fMoonsOuter">Moons per giant <output id="oMoonsOuter" for="fMoonsOuter">2</output></label>
-            <input type="range" id="fMoonsOuter" min="0" max="8" step="1" value="2"></div>
-          <div class="field"><label class="label-t" for="fBelts">Asteroid belts <output id="oBelts" for="fBelts">1</output></label>
-            <input type="range" id="fBelts" min="0" max="3" step="1" value="1"></div>
-          <div class="field"><label class="label-t" for="fGiants">Giant planet layout</label><select id="fGiants">
-            <option value="c">Conventional: beyond the snow line</option>
-            <option value="e">Eccentric: first giant on a stretched orbit, nearer in</option>
-            <option value="h">Hot: first giant very close to the star</option></select></div>
-          <div class="field"><label class="label-t" for="fCompanion">Companion star</label><select id="fCompanion">
-            <option value="n">None</option>
-            <option value="v">Very close (typically about 0.3 AU apart)</option>
-            <option value="c">Close (about 3 AU)</option>
-            <option value="m">Moderate (about 14 AU)</option>
-            <option value="w">Wide (about 70 AU)</option>
-            <option value="d">Distant (about 350 AU)</option></select></div>
-          <div class="field"><label class="label-t" for="fSeed">Seed</label>
-            <div class="seedrow"><input type="number" id="fSeed" min="0" max="4294967295" step="1" value="1"><button class="btn" id="fCopy">Copy link</button></div></div>
-          <p class="hint">The same settings and seed always make the same system. The link carries only those, never your images.</p>
+          <div class="row" id="massRow" hidden><span class="label">Star mass</span>
+            <div class="slide"><input type="range" id="fMass" min="10" max="1000" step="5" value="100" aria-label="Star mass"><span class="num wide" id="oMass">1.00 × Sun</span></div></div>
+          <div class="row"><span class="label">System age</span>
+            <div class="slide"><input type="range" id="fAge" min="0" max="120" step="1" value="46" aria-label="System age"><span class="num wide" id="oAge">4.6 billion years</span></div></div>
+          <div class="row"><span class="label">Moons per giant</span>
+            <div class="slide"><input type="range" id="fMoonsOuter" min="0" max="8" step="1" value="2" aria-label="Moons per giant"><span class="num" id="oMoonsOuter">2</span></div></div>
+          <div class="row"><span class="label">Asteroid belts</span>
+            <div class="slide"><input type="range" id="fBelts" min="0" max="3" step="1" value="1" aria-label="Asteroid belts"><span class="num" id="oBelts">1</span></div></div>
+          <div class="row"><span class="label">Giant planet layout</span>
+            <select id="fGiants" aria-label="Giant planet layout">
+              <option value="c">Conventional: beyond the snow line</option>
+              <option value="e">Eccentric: first giant on a stretched orbit, nearer in</option>
+              <option value="h">Hot: first giant very close to the star</option></select></div>
+          <div class="row"><span class="label">Companion star</span>
+            <select id="fCompanion" aria-label="Companion star">
+              <option value="n">None</option>
+              <option value="v">Very close (typically about 0.3 AU apart)</option>
+              <option value="c">Close (about 3 AU)</option>
+              <option value="m">Moderate (about 14 AU)</option>
+              <option value="w">Wide (about 70 AU)</option>
+              <option value="d">Distant (about 350 AU)</option></select></div>
+          <div class="row"><span class="label">Seed</span>
+            <div class="seedrow"><input type="number" id="fSeed" min="0" max="4294967295" step="1" value="1" aria-label="Seed"><button class="action" id="fCopy">Copy link</button></div>
+            <p class="hint">Same settings and same seed, same system. The link holds those and nothing else. Your images stay home.</p></div>
         </details>
       </div>
-    </details>
+    </div>
+  </details>
 
-    <details class="group" id="sec-time" open>
-      <summary>Time</summary>
-      <div class="row2">
-        <button class="btn" id="playPause" aria-pressed="false">Pause</button>
-        <button class="btn" id="reverse" aria-pressed="false">Run backwards</button>
+  <details class="group" id="sec-time" open>
+    <summary><span>Time</span></summary>
+    <div class="row">
+      <span class="label">Clock</span>
+      <div class="minirow">
+        <button class="action" id="playPause" aria-pressed="false">Pause</button>
+        <button class="action" id="reverse" aria-pressed="false">Run backwards</button>
       </div>
-      <div>
-        <label class="label-t" for="speed">Speed</label>
-        <div id="speedLabel">—</div>
-        <input type="range" id="speed" min="0" max="6" step="1" value="3" aria-describedby="speedLabel">
-      </div>
-      <button class="btn" id="today">Back to today</button>
-      <p class="hint" id="timeHint">Planets sit where they really are on the date shown. Spin is slowed at high speeds so planets don't strobe.</p>
-    </details>
+    </div>
+    <div class="row">
+      <span class="label">Speed</span>
+      <div class="slide"><input type="range" id="speed" min="0" max="6" step="1" value="3" aria-label="Speed"><span class="num wide" id="speedLabel">—</span></div>
+      <button class="action" id="today">Back to today</button>
+      <p class="hint" id="timeHint">Planets sit where they really are on the date shown. Spin is slowed at high speeds so nothing strobes.</p>
+    </div>
+  </details>
 
-    <details class="group" id="sec-bodies" open>
-      <summary>Bodies</summary>
+  <details class="group" id="sec-bodies" open>
+    <summary><span>Bodies</span></summary>
+    <div class="row">
       <div id="bodyList" role="group" aria-label="Choose a body"></div>
-      <div id="moonWrap" hidden><span class="label-t" id="moonLabel">Moons</span><div id="moonList" role="group" aria-labelledby="moonLabel"></div></div>
-      <button class="btn" id="overview">Whole system (0)</button>
-    </details>
+      <div id="moonWrap" hidden><span class="label" id="moonLabel">Moons</span><div id="moonList" role="group" aria-labelledby="moonLabel"></div></div>
+      <button class="action" id="overview">Whole system (0)</button>
+    </div>
+  </details>
 
-    <details class="group" id="sec-selected" open>
-      <summary>Selected</summary>
-      <div>
-        <h2 id="selName">Sun</h2>
-        <p id="selKind" aria-live="polite">Star</p>
-        <dl id="facts"></dl>
-        <p id="factNote">Sizes, spin and orbit figures: NASA Planetary Fact Sheet. Distance and light time are worked out live from the date.</p>
-      </div>
-      <div class="row2">
-        <button class="btn" id="mapBtn">Use my own map…</button>
-        <button class="btn" id="mapReset" disabled>Built-in look</button>
-      </div>
-      <input type="file" id="mapFile" accept="image/*" hidden>
-      <p class="hint" id="mapMsg">Drop an image on a body to dress it, or anywhere on the page to dress the selected one. 2:1 equirectangular maps wrap best. Nothing is uploaded.</p>
-    </details>
+  <details class="group" id="sec-selected" open>
+    <summary><span>Selected</span></summary>
+    <div class="row">
+      <h2 id="selName" style="font-weight:400">Sun</h2>
+      <p id="selKind" aria-live="polite">Star</p>
+      <dl id="facts"></dl>
+      <p id="factNote"></p>
+    </div>
+    <div class="row">
+      <span class="label">Image</span>
+      <label class="buttonlike" id="mapBtn" for="mapFile"><span>Choose, drop, or paste an image</span></label>
+      <input type="file" id="mapFile" accept="image/*" multiple>
+      <div class="minirow gap"><button class="action" id="mapReset" disabled>Built-in look</button></div>
+      <p class="advice" id="mapMsg">Drop an image on a body to dress it, or anywhere to dress the selected one. 2:1 maps wrap best. Nothing is uploaded.</p>
+    </div>
+  </details>
 
-    <details class="group" id="sec-project">
-      <summary>Project</summary>
-      <div class="row2">
-        <button class="btn" id="projSave">Save to a file</button>
-        <button class="btn" id="projOpen">Open a file</button>
+  <details class="group" id="sec-view" open>
+    <summary><span>View</span></summary>
+    <div class="row">
+      <span class="label">Display</span>
+      <div class="toggles">
+        <button class="tog" id="tOrbits" aria-pressed="true"><span class="dot"></span>Orbits</button>
+        <button class="tog" id="tLabels" aria-pressed="true"><span class="dot"></span>Names</button>
+        <button class="tog" id="tStars" aria-pressed="true"><span class="dot"></span>Starfield</button>
+        <button class="tog" id="tZone" aria-pressed="true"><span class="dot"></span>Habitable zone</button>
       </div>
-      <input type="file" id="projFile" accept=".json,application/json" hidden>
-      <button class="btn" id="mapsClear" disabled>Clear all my images</button>
-      <p class="hint" id="projHint">A project file holds the system and the images you have put on it, so you can carry it to another browser. It never leaves your computer unless you send it.</p>
-    </details>
-
-    <details class="group" id="sec-view">
-      <summary>View</summary>
-      <div class="row3">
-        <button class="btn" id="tOrbits" aria-pressed="true">Orbits</button>
-        <button class="btn" id="tLabels" aria-pressed="true">Labels</button>
-        <button class="btn" id="tStars" aria-pressed="true">Stars</button>
+    </div>
+    <div class="row">
+      <span class="label">Distances</span>
+      <div class="seg">
+        <button id="distSqueezed" aria-pressed="true">Squeezed</button>
+        <button id="distTrue" aria-pressed="false">True</button>
       </div>
-      <button class="btn" id="tZone" aria-pressed="true">Habitable zone and snow line</button>
-      <div>
-        <span class="label-t" id="distLabel">Distances</span>
-        <div class="seg" role="group" aria-labelledby="distLabel">
-          <button class="btn" id="distSqueezed" aria-pressed="true">Squeezed</button>
-          <button class="btn" id="distTrue" aria-pressed="false">True</button>
-        </div>
-      </div>
-      <div>
-        <span class="label-t" id="sizeLabel">Sizes</span>
-        <div class="seg" role="group" aria-labelledby="sizeLabel">
-          <button class="btn" id="sizeBig" aria-pressed="true">Enlarged</button>
-          <button class="btn" id="sizeTrue" aria-pressed="false">True</button>
-        </div>
+      <span class="label gap" style="display:block">Sizes</span>
+      <div class="seg">
+        <button id="sizeBig" aria-pressed="true">Enlarged</button>
+        <button id="sizeTrue" aria-pressed="false">True</button>
       </div>
       <p class="hint" id="scaleHint"></p>
-      <div class="row2">
-        <button class="btn" id="savePng">Save as PNG</button>
-        <button class="btn" id="helpOpen">Shortcuts (?)</button>
+    </div>
+    <div class="row">
+      <span class="label">Quick resets</span>
+      <div class="minirow">
+        <button class="action" id="resetView">Reset view</button>
+        <button class="action" id="resetDisplay">Reset display</button>
       </div>
-    </details>
+      <button class="action" id="helpOpen">Controls and shortcuts (?)</button>
+    </div>
+  </details>
 
-  </div>
-</aside>
+  <details class="group" id="sec-export" open>
+    <summary><span>Save and export</span></summary>
+    <div class="row">
+      <button class="primary" id="savePng">Save this view as PNG</button>
+    </div>
+    <div class="row">
+      <span class="label">Project</span>
+      <button class="action" id="projSave" style="margin-top:0">Save the system and its images</button>
+      <label class="buttonlike gap" id="projOpen" for="projFile">Open a project file</label>
+      <input type="file" id="projFile" accept=".json,application/json">
+      <button class="action" id="mapsClear" disabled>Clear all my images</button>
+      <p class="hint" id="projHint">A project file holds the system and the images you've put on it, so you can carry it to another browser. It stays on your machine, where it belongs.</p>
+    </div>
+  </details>
+</div>
 
 <div id="help" hidden role="dialog" aria-modal="true" aria-labelledby="helpCap">
-  <div class="card">
-    <h2 id="helpCap">Controls and shortcuts</h2>
+  <div class="card" tabindex="-1">
+    <div class="label" id="helpCap">Controls and shortcuts</div>
     <dl>
       <dt>Look around</dt><dd>Drag, or the arrow keys</dd>
-      <dt>Zoom</dt><dd>Wheel, pinch, or <kbd>+</kbd> and <kbd>-</kbd></dd>
+      <dt>Zoom</dt><dd>Mouse wheel, pinch, or <kbd>+</kbd> and <kbd>-</kbd></dd>
       <dt>Pick a body</dt><dd>Click it or its name. <kbd>1</kbd> to <kbd>9</kbd> pick planets in order (our system: <kbd>9</kbd> is the Moon). <kbd>,</kbd> and <kbd>.</kbd> step to the previous or next body</dd>
-      <dt>Whole system</dt><dd><kbd>0</kbd></dd>
+      <dt>Whole system</dt><dd>Double-click empty space, or <kbd>0</kbd></dd>
       <dt>Time</dt><dd><kbd>Space</kbd> pause, <kbd>[</kbd> slower, <kbd>]</kbd> faster, <kbd>R</kbd> reverse, <kbd>T</kbd> today (or the start, in a built system)</dd>
-      <dt>Show or hide</dt><dd><kbd>O</kbd> orbits, <kbd>L</kbd> labels, <kbd>Z</kbd> habitable zone</dd>
-      <dt>Dress a body</dt><dd>Select it, then drop a 2:1 map on the page</dd>
+      <dt>Show or hide</dt><dd><kbd>O</kbd> orbits, <kbd>L</kbd> names, <kbd>Z</kbd> habitable zone</dd>
+      <dt>Dress a body</dt><dd>Drop an image on it, choose one, or paste one. Several images dress several bodies in order</dd>
       <dt>This list</dt><dd><kbd>?</kbd> to open, <kbd>Esc</kbd> to close</dd>
     </dl>
-    <button class="btn" id="helpClose">Close</button>
+    <button id="helpClose">Close</button>
   </div>
 </div>
 

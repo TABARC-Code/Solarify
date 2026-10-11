@@ -22,13 +22,13 @@ Download `index.html` and double-click it. Or clone the repository and open the 
 git clone https://github.com/TABARC-Code/Solarify
 ```
 
-That's all. There's nothing to install and nothing to configure, which is the nicest thing I can say about configuration. Three.js is bundled inside the page, so it works offline.
+That's all. There's nothing to install and nothing to configure, which is the nicest thing I can say about configuration. Three.js and the three fonts are bundled inside the page, so it works offline.
 
 You need a browser with WebGL. If yours hasn't got it, the page says so in plain text instead of showing a black rectangle.
 
 ## What a first run looks like
 
-A dark page. "Solarify" top left with a date and time under it. The Sun in the middle, orbit rings, labelled planets, and a control panel down the right-hand side (a bottom sheet on phones). The planets move, and the inner ones move fast, because the default is ten days per second.
+A dark page. "Solarify" top left. The Sun in the middle, orbit rings, labelled planets, a small readout with the date, speed and what you're looking at, and a drawer of controls down the right-hand side (a bottom sheet with a handle on phones). It deliberately looks like Globify, same palette and same drawer, so the two feel like one family. The planets move, and the inner ones move fast, because the default is ten days per second.
 
 Press **Build your own** and a toast tells you "Built" followed by a made-up name. The panel grows a short form and a summary line such as "4 rocky planets, 4 giants, 1 asteroid belt, 16 moons". If instead you see only a paragraph about WebGL, that's the fallback message, and the fix is in [Troubleshooting](#troubleshooting).
 
@@ -90,11 +90,11 @@ Click any body. A rocky planet shows its size class and world type, density, gra
 The Globify trick, on every body in both modes: stars, planets, moons.
 
 - **Drop an image on a body** and that body wears it. While you drag, a small label names the body it will go to, and time pauses so you can aim at something that goes round in a second.
-- **Drop it anywhere else** and it goes on the selected body.
+- **Drop it anywhere else** and it goes on the selected body. So does pasting an image from the clipboard.
 - **Drop several at once** and they dress several bodies in order, starting with the one under the pointer.
 - **2:1 equirectangular** wraps cleanest. Other shapes work but look stretched, and the panel tells you.
 - **Your images stay while the page is open.** Roll a new system, change the star, or switch to our Solar System and back, and each image stays on the same slot (planet b is always planet b). The two kinds of system keep separate sets.
-- **Built-in look** (in the Selected panel) removes one image. **Clear all my images** (under Project) removes the lot.
+- **Built-in look** (in the Selected section) removes one image. **Clear all my images** (under Project) removes the lot.
 - **Project files** (under Project, **Save to a file** and **Open a file**) hold the system and its images in one file you can carry to another browser.
 
 For maps, NASA and USGS publish plenty, and the Solar System Scope textures are popular. Check each source's licence before you reuse or redistribute anything. NASA's media guidelines are generally permissive, and "generally" is doing a fair amount of work in that sentence. I haven't bundled any.
@@ -115,7 +115,7 @@ For maps, NASA and USGS publish plenty, and the Solar System Scope textures are 
 | `O`, `L` and `Z` | Orbits, labels, habitable zone |
 | `?` | Help. `Esc` closes it |
 
-Moons are listed under their planet's button whenever that planet or one of its moons is selected. **Save as PNG** (under View) saves what you can see, minus the panel.
+**Reset view** and **Reset display** (both under View) put the camera and the toggles back. Moons are listed under their planet's button whenever that planet or one of its moons is selected. **Save as PNG** (under View) saves what you can see, minus the panel.
 
 ## What's real and what's staged
 
@@ -133,7 +133,7 @@ The reasoning behind those choices is in `description.md`.
 
 ## Privacy and security
 
-Nothing leaves your machine. None of the code I wrote makes a network request, and the only URL in it is an SVG namespace inside the favicon. Three.js is bundled unmodified and I don't call its loaders.
+Nothing leaves your machine. None of the code I wrote makes a network request, and the only URL in it is an SVG namespace inside the favicon. Three.js is bundled unmodified and I don't call its loaders. The fonts are embedded, so nothing comes from a font service either.
 
 The browser stores two small things in `localStorage`: your view settings (orbits, labels, stars, zone, scale modes, speed for our own system) and the last builder settings. No images, no dates, no personal data. The address bar changes to the share link when you build a system; it holds only settings and a seed.
 

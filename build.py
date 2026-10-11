@@ -17,6 +17,7 @@ orbits = (root / "src" / "orbits.js").read_text(encoding="utf-8")
 tables = (root / "src" / "tables.js").read_text(encoding="utf-8")
 system = (root / "src" / "system.js").read_text(encoding="utf-8")
 app = (root / "src" / "app.js").read_text(encoding="utf-8")
+fonts = (root / "src" / "fonts.css").read_text(encoding="utf-8")
 
 for name, code in (("three", three), ("orbits", orbits), ("tables", tables), ("system", system), ("app", app)):
     if "</script" in code.lower():
@@ -26,7 +27,10 @@ for marker in ("<!--THREE-->", "<!--ORBITS-->", "<!--TABLES-->", "<!--SYSTEM-->"
     if template.count(marker) != 1:
         sys.exit("build: template needs exactly one %s" % marker)
 
-html = template.replace("<!--THREE-->", "<script>" + three.strip() + "</script>")
+if template.count("/*FONTS*/") != 1:
+    sys.exit("build: template needs exactly one /*FONTS*/")
+html = template.replace("/*FONTS*/", fonts.strip())
+html = html.replace("<!--THREE-->", "<script>" + three.strip() + "</script>")
 html = html.replace("<!--ORBITS-->", "<script>\n" + orbits.strip() + "\n</script>")
 html = html.replace("<!--TABLES-->", "<script>\n" + tables.strip() + "\n</script>")
 html = html.replace("<!--SYSTEM-->", "<script>\n" + system.strip() + "\n</script>")

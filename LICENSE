@@ -22,3 +22,11 @@ SOFTWARE.
 
 Bundled third-party code: vendor/three.r128.min.js is Three.js r128, also MIT
 licensed (Copyright 2010-2021 three.js authors). Its own header is kept intact.
+
+Bundled fonts, embedded in index.html as base64 (src/fonts.css), each under the
+SIL Open Font License 1.1 (https://openfontlicense.org):
+  Spectral, by Production Type. https://github.com/productiontype/Spectral
+  IBM Plex Mono, Copyright 2017 IBM Corp. https://github.com/IBM/plex
+  Atkinson Hyperlegible, by the Braille Institute of America.
+    https://github.com/googlefonts/atkinson-hyperlegible
+The fonts are unmodified apart from being subset or re-encoded for the web.

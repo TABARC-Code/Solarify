@@ -10,7 +10,7 @@ It is not a simulator, an ephemeris service or a teaching product. I've tried to
 
 ## The problem
 
-I wanted what Globify does for a globe, but for a whole system. Globify's promise is narrow and good: one file, no install, nothing uploaded, and your own map on the sphere. Keeping that promise sets most of the constraints.
+I wanted what Globify does for a globe, but for a whole system. Globify's promise is narrow and good: one file, no install, nothing uploaded, and your own map on the sphere. Keeping that promise sets most of the constraints. The interface follows Globify's too: same tokens, same drawer and handle, same readout bezel, same row, toggle and button patterns. Where Globify loads Atkinson Hyperlegible from Google Fonts, Solarify embeds it, because "no network requests" is easier to defend without an exception.
 
 One file means everything is inlined, Three.js included. No upload means no server, no cloud fonts, no analytics, and nowhere to put anything. It also means the page has to cope with whatever browser it lands in, with no way for me to see what happened.
 
