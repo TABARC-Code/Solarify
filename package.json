@@ -1,0 +1,16 @@
+{
+  "name": "solarify",
+  "version": "0.7.0",
+  "private": true,
+  "description": "A solar system in one HTML file, and a workshop for building your own.",
+  "author": "TABARC-Code",
+  "license": "MIT",
+  "scripts": {
+    "build": "python3 build.py",
+    "test": "node tests/orbits.test.js && node tests/system.test.js",
+    "test:browser": "node tests/browser/run.js"
+  },
+  "devDependencies": {
+    "playwright": "1.64.0"
+  }
+}

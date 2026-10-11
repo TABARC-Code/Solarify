@@ -205,7 +205,17 @@ No dependencies, no network. I ran them on Node 22. Other versions are untested.
 
 `system.test.js` has 80 checks: published numbers, arithmetic the builder promises, and a fuzz run of 864 random systems checking what must always hold. Orbits never cross, nothing sits inside its star, planets stay out of a companion's forbidden zone, belts keep clear, moons stay inside the stability limit, and the same seed gives the same system. Both files passed when I last ran them. I also pushed 20,000 fully random systems through the same checks once, and those passed too.
 
-The interface has no automated tests in this repository. I checked it with throwaway Playwright scripts in headless Chromium, covering selection, keys, time, scale modes, the builder form, both companion-star cases, belts, the planet panel, share links, dropping images, project files (including hostile ones), a phone-sized viewport and the no-WebGL fallback. Those scripts aren't included, so treat the interface as looked at, not covered.
+### Browser checks
+
+The interface has its own checks in `tests/browser/`, ten files driving the real page in headless Chromium through Playwright. They cover selection, keys, time, scale modes, the builder form, both companion-star cases, belts, the planet panel and its extra detail, travel, share links, dropping images, size, diameter and type overrides, project files (including hostile ones), a phone-sized viewport, the drawer handle by keyboard, and the no-WebGL fallback.
+
+```
+npm install                   # fetches Playwright, the only dependency
+npx playwright install chromium
+node tests/browser/run.js     # all ten, or name some: node tests/browser/run.js overrides
+```
+
+The runner starts its own little web server on localhost, so there's nothing else to set up. If Playwright's own Chromium won't run on your machine, point `SOLARIFY_CHROME` at another Chromium or Chrome executable. They're slow, a minute or two each under software rendering, and they lean on short waits, so a heavily loaded machine can make one stumble. Run a stumbling one again on its own before believing it.
 
 ## Build
 

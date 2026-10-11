@@ -152,7 +152,6 @@ None of this exists yet; it's what I'd consider.
 - Tectonics.
 - More per-planet overrides now that sizes and types work: atmosphere and moon count. The per-planet random streams were built so these stay cheap.
 - A gallery of starter maps, if I can find ones whose licence lets me ship them.
-- The browser test scripts committed to the repository. This is the one I'd actually do first.
 
 ## Provenance
 

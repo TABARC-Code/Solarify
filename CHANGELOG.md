@@ -27,4 +27,8 @@ While I was at it: choosing the size class the rules had already rolled now coun
 
 The new workbook sheets had a few formula slips, fixed here rather than copied: the Hohmann travel time, the Hohmann delta-v (it gave the first burn only), and the Hill sphere (it mixed Earth and solar masses). `description.md` has the details.
 
-Tests: 33 orbit checks and 80 builder checks, plus my browser scripts.
+Tests: 33 orbit checks and 80 builder checks.
+
+### Since 0.7.0
+
+- The browser checks are in the repository now, in `tests/browser/`, with a runner (`node tests/browser/run.js`) and a `package.json` that pulls in Playwright. They used to live on my machine only, which was no use to anyone else.
