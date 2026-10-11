@@ -1553,11 +1553,11 @@ function loadSystem(def){
 /* ------------------------------------------------------------------
    15. The "Build your own" form
 ------------------------------------------------------------------ */
-var CFG_KEY = 'solarify.cfg', curSizes = {}, curDiam = {};   // per-planet size class and exact-diameter overrides, kept apart from the form controls
+var CFG_KEY = 'solarify.cfg', curSizes = {}, curDiam = {}, curTypes = {};   // per-planet size class and exact-diameter overrides, kept apart from the form controls
 function randomSeed(){ return 1 + Math.floor(Math.random() * 99999); }
 function formCfg(){
   return SYS.normalise({star:$('fStar').value, mass:+$('fMass').value, age:+$('fAge').value, inner:+$('fInner').value, outer:+$('fOuter').value, belts:+$('fBelts').value,
-    moonsInner:+$('fMoonsInner').value, moonsOuter:+$('fMoonsOuter').value, home:$('fHome').value, giants:$('fGiants').value, companion:$('fCompanion').value, seed:+$('fSeed').value, sizes:curSizes, diam:curDiam});
+    moonsInner:+$('fMoonsInner').value, moonsOuter:+$('fMoonsOuter').value, home:$('fHome').value, giants:$('fGiants').value, companion:$('fCompanion').value, seed:+$('fSeed').value, sizes:curSizes, diam:curDiam, types:curTypes});
 }
 function updateOutputs(){
   $('oMass').textContent = fmtNum(+$('fMass').value / 100, 2) + ' × Sun';
@@ -1567,7 +1567,7 @@ function updateOutputs(){
 }
 var giantMoonsTouched = false, buildTimer = 0;
 function setForm(c){
-  curSizes = c.sizes || {}; curDiam = c.diam || {};
+  curSizes = c.sizes || {}; curDiam = c.diam || {}; curTypes = c.types || {};
   giantMoonsTouched = c.moonsOuter !== Math.min(8, 2 * c.moonsInner);
   $('fStar').value = c.star; $('fHome').value = c.home; $('fSeed').value = c.seed; $('fGiants').value = c.giants; $('fCompanion').value = c.companion;
   $('fMass').value = c.star === 'X' ? c.mass : 100; $('fAge').value = c.age;
@@ -1599,6 +1599,7 @@ function onFormChange(e){
 })();
 
 /* Per-planet size: a class picker in the Selected section. Auto means whatever the rules rolled. */
+var TYPE_LABELS = {Garden:'Garden (temperate)', Ocean:'Ocean', Rock:'Rock (barren)', Ice:'Ice', Hadean:'Hadean (frozen rock)', Ammonia:'Ammonia', Sulfur:'Sulfur', Greenhouse:'Greenhouse (runaway)', Chthonian:'Chthonian (scorched core)'};
 var SIZE_NAMES = {rocky:['Tiny', 'Small', 'Standard', 'Large'], giant:['Small', 'Medium', 'Large']};
 function sizeSlot(b){ return /^p(\d+)$/.test(b.id) ? +RegExp.$1 : 0; }
 function updateSizeRow(b){
@@ -1612,10 +1613,17 @@ function updateSizeRow(b){
   });
   var cls = b.giant ? b.ggClass : b.sizeClass;
   sel.value = b.sizeSet ? String(names.indexOf(cls) + (b.giant ? 4 : 0)) : 'auto';
+  var tw = $('typeWrap'); tw.hidden = !!b.giant;
+  if (!b.giant){
+    var ts = $('typeSel'); ts.textContent = '';
+    var ta = document.createElement('option'); ta.value = 'auto'; ta.textContent = 'Auto (' + TYPE_LABELS[b.typeAuto] + ')'; ts.appendChild(ta);
+    b.typeOptions.forEach(function(t){ var o = document.createElement('option'); o.value = String(SYS.TYPE_LIST.indexOf(t)); o.textContent = TYPE_LABELS[t]; ts.appendChild(o); });
+    ts.value = b.typeSet ? String(SYS.TYPE_LIST.indexOf(b.worldType)) : 'auto';
+  }
   var sl = $('sizeDiam'); sl.value = String(Math.round(b.diamT * 1000)); $('diamReset').disabled = !b.diamSet; showDiam(b);
   $('sizeMsg').textContent = b.giant
     ? 'Size class picks the giant\'s kind; the slider moves its diameter inside the class range, and mass follows from density. Moons follow.'
-    : 'Size class sets the type, atmosphere, temperature, resources and moons; the slider then moves the diameter inside the class limits, and gravity and mass follow. The other planets stay as they are.';
+    : 'Size class sets the type, atmosphere, temperature, resources and moons; World type overrides the type for that class (atmosphere, temperature and the rest follow); the slider moves the diameter inside the class limits, and gravity and mass follow. The other planets stay as they are.';
 }
 function showDiam(b){
   var t = +$('sizeDiam').value / 1000, D = b.diamMin + t * (b.diamMax - b.diamMin);
@@ -1627,14 +1635,18 @@ function copyOf(o){ var c = {}; Object.keys(o).forEach(function(k){ c[k] = o[k];
 function applyOverride(change){
   var b = byId[state.focus], slot = b ? sizeSlot(b) : 0;
   if (!slot || !sys || sys.mode !== 'custom') return;
-  var sizes = copyOf(curSizes), diam = copyOf(curDiam); change(sizes, diam, slot);
-  var id = b.id, cfg = formCfg(); cfg.sizes = sizes; cfg.diam = diam; clearTimeout(buildTimer);
+  var sizes = copyOf(curSizes), diam = copyOf(curDiam), types = copyOf(curTypes); change(sizes, diam, slot, types);
+  var id = b.id, cfg = formCfg(); cfg.sizes = sizes; cfg.diam = diam; cfg.types = types; clearTimeout(buildTimer);
   generateSystem(SYS.normalise(cfg), true);
   if (byId[id]) focusOn(id);
 }
 $('sizeSel').addEventListener('change', function(){
   var v = this.value;
-  applyOverride(function(sizes, diam, slot){ if (v === 'auto') delete sizes[slot]; else sizes[slot] = +v; delete diam[slot]; });   // a new class starts from its own rolled diameter
+  applyOverride(function(sizes, diam, slot, types){ if (v === 'auto') delete sizes[slot]; else sizes[slot] = +v; delete diam[slot]; delete types[slot]; });   // a new class starts from its own rolled diameter and type
+});
+$('typeSel').addEventListener('change', function(){
+  var v = this.value;
+  applyOverride(function(sizes, diam, slot, types){ if (v === 'auto') delete types[slot]; else types[slot] = +v; });
 });
 $('sizeDiam').addEventListener('input', function(){ var b = byId[state.focus]; if (b && b.diamMin != null) showDiam(b); });
 $('sizeDiam').addEventListener('change', function(){ var v = +this.value; applyOverride(function(sizes, diam, slot){ diam[slot] = v; }); });
@@ -1679,7 +1691,7 @@ function setMode(m){
 }
 $('modeSol').addEventListener('click', function(){ if (sys.mode !== 'sol') showSolar(); });
 $('modeBuild').addEventListener('click', function(){ if (sys.mode !== 'custom') generateSystem(formCfg()); });
-$('fRoll').addEventListener('click', function(){ clearTimeout(buildTimer); curSizes = {}; curDiam = {}; $('fSeed').value = randomSeed(); generateSystem(formCfg()); });
+$('fRoll').addEventListener('click', function(){ clearTimeout(buildTimer); curSizes = {}; curDiam = {}; curTypes = {}; $('fSeed').value = randomSeed(); generateSystem(formCfg()); });
 $('fCopy').addEventListener('click', function(){
   var url = location.href;
   function fallback(){ toast('Copy it from the address bar: ' + url); }
@@ -1742,7 +1754,7 @@ window.addEventListener('resize', function(){ layoutView(); if (state.overview) 
 
 // A small handle, mainly so the maths can be checked from the console and the tests.
 window.solarify = {
-  version: '0.5.0',
+  version: '0.6.0',
   positionsAU: function(when){
     var jd = typeof when === 'number' ? when : jdFromDate(new Date(when)), T = centuries(jd), out = {};
     PLANETS.forEach(function(b){
@@ -1761,7 +1773,7 @@ window.solarify = {
   mode: function(){ return sys.mode; },
   system: function(){ return {mode:sys.mode, name:sys.name, unit:sys.unit, hz:sys.hz, frost:sys.frost, notes:sys.notes, counts:sys.counts || null, belts:(sys.belts || []).length, stars:sys.stars.length, regime:sys.binary ? sys.binary.regime : null, age:sys.ageGyr,
     bodies:BODIES.map(function(b){ return {id:b.id, name:b.name, kind:b.kind, parent:b.parent || null, home:!!b.home, key:b.key, aAU:b.aAU || null, ecc:b.ecc || 0, texSize:b.texSize || 0,
-      radiusKm:b.radiusKm, sizeClass:b.sizeClass || null, ggClass:b.ggClass || null, worldType:b.worldType || null, diamMin:b.diamMin, diamMax:b.diamMax, diamT:b.diamT, diamSet:!!b.diamSet}; })}; },
+      radiusKm:b.radiusKm, sizeClass:b.sizeClass || null, ggClass:b.ggClass || null, worldType:b.worldType || null, diamMin:b.diamMin, diamMax:b.diamMax, diamT:b.diamT, diamSet:!!b.diamSet, typeSet:!!b.typeSet, typeAuto:b.typeAuto || null}; })}; },
   build: function(cfg){ return generateSystem(SYS.normalise(cfg)); },
   solar: function(){ return showSolar(); },
   openProject: openProject, maps: function(){ return Object.keys(userMaps[sys.mode]); }, hasMap: function(id){ return !!(byId[id] && byId[id].customTex); },

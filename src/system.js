@@ -7,7 +7,7 @@
  *
  * No DOM and no Three.js in here, so tests/system.test.js can hammer it from Node.
  *
- * Ideas, not promises: per-planet overrides for type, atmosphere and moon count (the per-planet random streams below were made so these can follow cheaply); a
+ * Ideas, not promises: per-planet overrides for atmosphere and moon count (the per-planet random streams below were made so these can follow cheaply); a
  * retrograde or tilted planet on request; a link format that stays readable across versions.
  *
  * Where the numbers come from, and how far to trust them:
@@ -159,40 +159,52 @@ function normalise(cfg){
     var slot = +k, v = dsrc[k];
     if (/^\d+$/.test(k) && slot >= 1 && slot <= MAX_PLANETS && typeof v === 'number' && v === Math.floor(v) && v >= 0 && v <= 1000) diam[slot] = v;
   });
+  // world type: planet number to an index into TYPE_LIST
+  var types = {}, tsrc = cfg.types && typeof cfg.types === 'object' ? cfg.types : {};
+  Object.keys(tsrc).forEach(function(k){
+    var slot = +k, v = tsrc[k];
+    if (/^\d+$/.test(k) && slot >= 1 && slot <= MAX_PLANETS && typeof v === 'number' && v === Math.floor(v) && v >= 0 && v < TYPE_LIST.length) types[slot] = v;
+  });
   return {
     star: star, mass: mass, age: n('age', 46),
     inner: n('inner', 4), outer: n('outer', 4), belts: n('belts', 1), moonsInner: n('moonsInner', 1), moonsOuter: n('moonsOuter', 3),
     home: HOMES.indexOf(cfg.home) >= 0 ? cfg.home : 'hz',
     giants: GIANT_LAYOUTS.indexOf(cfg.giants) >= 0 ? cfg.giants : 'c',
-    companion: COMPANIONS.indexOf(cfg.companion) >= 0 ? cfg.companion : 'n', seed: seed, sizes: sizes, diam: diam
+    companion: COMPANIONS.indexOf(cfg.companion) >= 0 ? cfg.companion : 'n', seed: seed, sizes: sizes, diam: diam, types: types
   };
 }
 function encodeSizes(sz, dash){
   var k = Object.keys(sz).map(Number).sort(function(a, b){ return a - b; });
   return k.length ? k.map(function(i){ return i + 'x' + sz[i]; }).join('_') : (dash === false ? '' : '-');
 }
-function decodeSizes(t, max){
+function decodeSizes(t, kind){
   if (t === '-') return {};
-  if (!(max ? /^\d+x\d{1,4}(_\d+x\d{1,4})*$/ : /^\d+x[0-6](_\d+x[0-6])*$/).test(t)) return null;
+  var re = kind === 'diam' ? /^\d+x\d{1,4}(_\d+x\d{1,4})*$/ : kind === 'type' ? /^\d+x\d(_\d+x\d)*$/ : /^\d+x[0-6](_\d+x[0-6])*$/;
+  if (!re.test(t)) return null;
   var out = {};
   t.split('_').forEach(function(e){ var a = e.split('x'); out[+a[0]] = +a[1]; });
   return out;
 }
 function encodeCfg(cfg){
   var c = normalise(cfg);
-  return [VERSION, c.star, c.mass, c.age, c.inner, c.outer, c.belts, c.moonsInner, c.moonsOuter, c.home, c.giants, c.companion, c.seed, encodeSizes(c.sizes)].concat(Object.keys(c.diam).length ? [encodeSizes(c.diam)] : []).join('.');   // the diameter field is only there when used, so older links stay valid
+  var parts = [VERSION, c.star, c.mass, c.age, c.inner, c.outer, c.belts, c.moonsInner, c.moonsOuter, c.home, c.giants, c.companion, c.seed, encodeSizes(c.sizes)];
+  var hasT = Object.keys(c.types).length;
+  if (Object.keys(c.diam).length || hasT) parts.push(encodeSizes(c.diam));
+  if (hasT) parts.push(encodeSizes(c.types));
+  return parts.join('.');   // the diameter and type fields are only there when used, so older links stay valid
 }
 // Returns a normalised config, or null if the text isn't one of ours.
 function decodeCfg(text){
   var p = String(text || '').split('.');
-  if ((p.length !== 14 && p.length !== 15) || +p[0] !== VERSION) return null;
-  var sizes = decodeSizes(p[13]), diam = p.length === 15 ? decodeSizes(p[14], true) : {}; if (!sizes || !diam) return null;
+  if (p.length < 14 || p.length > 16 || +p[0] !== VERSION) return null;
+  var sizes = decodeSizes(p[13]), diam = p.length >= 15 ? decodeSizes(p[14], 'diam') : {}, types = p.length === 16 ? decodeSizes(p[15], 'type') : {};
+  if (!sizes || !diam || !types) return null;
   if (Object.keys(diam).some(function(k){ return diam[k] > 1000; })) return null;
   if (!(STARS[p[1]] || p[1] === 'X') || HOMES.indexOf(p[9]) < 0 || GIANT_LAYOUTS.indexOf(p[10]) < 0 || COMPANIONS.indexOf(p[11]) < 0) return null;
   var idx = [2, 3, 4, 5, 6, 7, 8, 12], nums = idx.map(function(i){ return /^\d+$/.test(p[i]) ? +p[i] : NaN; });
   if (nums.some(function(v){ return !isFinite(v); })) return null;
   return normalise({star:p[1], mass:nums[0], age:nums[1], inner:nums[2], outer:nums[3], belts:nums[4], moonsInner:nums[5], moonsOuter:nums[6],
-    home:p[9], giants:p[10], companion:p[11], seed:nums[7], sizes:sizes, diam:diam});
+    home:p[9], giants:p[10], companion:p[11], seed:nums[7], sizes:sizes, diam:diam, types:types});
 }
 
 /* ---- the generator ---- */
@@ -202,6 +214,10 @@ var TYPE_NAMES = {Garden:'temperate world', Ocean:'ocean world', Rock:'barren ro
 var TYPE_GEN = {Garden:'terran', Ocean:'ocean', Rock:'barren', Ice:'ice', Hadean:'hadean', Ammonia:'ammonia', Sulfur:'sulfur', Greenhouse:'cloudy', Chthonian:'lava'};
 var TYPE_COLOR = {Garden:0x3a74b8, Ocean:0x2a5ea0, Rock:0x9a8f84, Ice:0xcfe0ea, Hadean:0x5a6270, Ammonia:0xb8c890, Sulfur:0xd8c040, Greenhouse:0xe0c690, Chthonian:0xc2441f};
 var SIZE_ORDER = ['Tiny', 'Small', 'Standard', 'Large'];
+// world types a size class can be (from the classification and absorption tables); a type override is only used if it is in the list for the planet's class
+var TYPE_LIST = ['Garden', 'Ocean', 'Rock', 'Ice', 'Hadean', 'Ammonia', 'Sulfur', 'Greenhouse', 'Chthonian'];
+var TYPES_BY_SIZE = {Tiny:['Rock', 'Ice', 'Sulfur'], Small:['Rock', 'Ice', 'Hadean'], Standard:['Garden', 'Ocean', 'Ice', 'Ammonia', 'Hadean', 'Greenhouse', 'Chthonian'],
+                     Large:['Garden', 'Ocean', 'Ice', 'Ammonia', 'Greenhouse', 'Chthonian']};
 
 function generate(input){
   var cfg = normalise(input), rnd = mulberry32(cfg.seed * 2654435761 + 97);
@@ -542,7 +558,10 @@ function generate(input){
       else if (cfg.home === 'hot') type = 'Greenhouse';
       else type = BB >= 151 && BB <= 230 ? (rnd() < 0.4 ? 'Ammonia' : 'Ice') : 'Ice';
     }
-    if (type === 'Garden' && systemAge < GARDEN_MIN_AGE){ type = 'Ocean'; young = true; }
+    var typeAuto = type, typeSet = false, tov = cfg.types[planets.indexOf(p) + 1];
+    if (tov != null && TYPES_BY_SIZE[sc].indexOf(TYPE_LIST[tov]) >= 0){ type = TYPE_LIST[tov]; typeSet = true; }
+    if (type === 'Garden' && systemAge < GARDEN_MIN_AGE && !typeSet){ type = 'Ocean'; young = true; }
+    if (type === 'Garden' && typeSet && systemAge < GARDEN_MIN_AGE) notes.push(pname + ' is set to a temperate world in a system under ' + GARDEN_MIN_AGE + ' billion years old. That is your call, but a breathable atmosphere would not normally have formed yet.');
     var core = ({Hadean:0, Ice:0, Ammonia:0, Sulfur:0, Rock:1, Garden:1, Ocean:1, Greenhouse:1, Chthonian:2})[type];
     var dens = lookup(T.densityByCore, roll(3))[1 + core];
     var sizeRow = T.sizeConstraints.filter(function(r){ return r[0] === sc; })[0];
@@ -580,7 +599,8 @@ function generate(input){
       lockNote:locked ? 'locked to its star (assumed)' : null, lockTo:locked ? 'sun' : null, periodDays:P, incl:el.I[0], ecc:+p.e.toFixed(3), color:TYPE_COLOR[type], key:null, rings:false,
       el:el, gen:{type:TYPE_GEN[type], seed:I(1, 99999), v1:rnd(), v2:rnd()}, home:p.home, giant:false, hot:false, sizeClass:sc, worldType:type, density:dens, gravity:grav,
       massEarth:massE, aAU:p.a, bbK:BB, surfaceK:surface, climate:climate, atmosphere:{category:pcat, pressureAtm:pressure, breathable:breathable, marginal:marginal, none:!factor},
-      hydro:hydro, tide:tide, volcanic:volc, resources:{label:rvmRow[2], rvm:rvmRow[3]}, habitability:hab, affinity:rvmRow[3] + hab, zone:zone, young:young, moons:[], sizeAuto:scAuto, sizeSet:sc !== scAuto, diamMin:lo, diamMax:hi, diamT:tOv != null ? tOv / 1000 : t0, diamSet:tOv != null};
+      hydro:hydro, tide:tide, volcanic:volc, resources:{label:rvmRow[2], rvm:rvmRow[3]}, habitability:hab, affinity:rvmRow[3] + hab, zone:zone, young:young, moons:[], sizeAuto:scAuto, sizeSet:sc !== scAuto, diamMin:lo, diamMax:hi, diamT:tOv != null ? tOv / 1000 : t0, diamSet:tOv != null,
+      typeAuto:typeAuto, typeSet:typeSet, typeOptions:TYPES_BY_SIZE[sc]};
   }
 
   function classify(sc, BB){
@@ -704,6 +724,6 @@ return {
   STARS:STARS, STAR_ORDER:STAR_ORDER, MASS_STAR:MASS_STAR, LIMITS:LIMITS, HOMES:HOMES, GIANT_LAYOUTS:GIANT_LAYOUTS, COMPANIONS:COMPANIONS, VERSION:VERSION, EPOCH_JD:EPOCH_JD,
   generate:generate, normalise:normalise, encodeCfg:encodeCfg, decodeCfg:decodeCfg,
   hzBounds:hzBounds, frostLine:frostLine, blackbody:blackbody, teq:teq, periodDays:periodDays, zoneOf:zoneOf, starProps:starProps, starAt:starAt, mainSequenceSpan:mainSequenceSpan,
-  mulberry32:mulberry32, GAS_PALETTES:GAS_PALETTES, AU_KM:AU_KM, RSUN_KM:RSUN_KM, REARTH_KM:REARTH_KM, GARDEN_MIN_AGE:GARDEN_MIN_AGE, SIZE_ORDER:SIZE_ORDER, MAX_PLANETS:MAX_PLANETS
+  mulberry32:mulberry32, GAS_PALETTES:GAS_PALETTES, AU_KM:AU_KM, RSUN_KM:RSUN_KM, REARTH_KM:REARTH_KM, GARDEN_MIN_AGE:GARDEN_MIN_AGE, SIZE_ORDER:SIZE_ORDER, TYPE_LIST:TYPE_LIST, TYPES_BY_SIZE:TYPES_BY_SIZE, MAX_PLANETS:MAX_PLANETS
 };
 });

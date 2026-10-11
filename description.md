@@ -88,7 +88,9 @@ The order is the design. Age feeds the star, the star sets the limits and the zo
 
 **Resizing a planet without disturbing the rest.** Size overrides needed one property: change planet 3 and planets 1, 2, 4 and 5 must not move. A single random stream can't give that, because a different size class changes how many numbers the world and its moons consume, and everything after it shifts. So each planet's body and moons now draw from their own stream seeded from the system seed and the planet's slot. The orbits still come from the main stream. The price was bumping the link version, which broke every old link, and I decided that was acceptable at this stage. The override rides in the share link as slot and class (rocky 0 to 3, giants 4 to 6, so a layout change can never apply a rocky size to a giant), and the tests check that nothing else changes, byte for byte.
 
-**Exact diameter is a fraction, not a number.** The diameter limits depend on the planet's temperature and a rolled density, so a stored value in kilometres would mean something different after any change upstream. The slider stores where the diameter sits between the class limits (0 to 1000). The generator always draws its usual random diameter first and only then replaces it, so setting one never shifts a later roll. That's also why the extra link field is optional: with it absent, generation is unchanged and version 4 links still open.
+**Exact diameter is a fraction, not a number.** The diameter limits depend on the planet's temperature and a rolled density, so a stored value in kilometres would mean something different after any change upstream. The slider stores where the diameter sits between the class limits (0 to 1000). The generator always draws its usual random diameter first and only then replaces it, so setting one never shifts a later roll. **A type override beats the rules, with one exception I made noise about.** The generator still runs its normal type choice first (so the random draws are unchanged), then swaps in the override if the size class permits it. Forced types mostly just flow through the tables: a hot Garden world gets the Garden atmosphere factor and reports a hot climate. The exception is a temperate world in a system under 2.5 billion years old, which my own staged rule would turn into an ocean world. Silently ignoring the override seemed worse than honouring it, so it's honoured with a note.
+
+That's also why the extra link field is optional: with it absent, generation is unchanged and version 4 links still open.
 
 **Moons say no.** A moon holds an orbit only within a fraction of its planet's Hill sphere, so you get fewer than you asked for, with a note. Rocky planets near a star usually get none. This is the one place the builder refuses the user, and I think that's right: it's physics doing something visible.
 
@@ -144,7 +146,7 @@ None of this exists yet; it's what I'd consider.
 - Pluto, from a proper source.
 - A "who lives here" panel, if settlement and economy tables turn out to be worth wiring in.
 - Tectonics.
-- More per-planet overrides now that sizes work: world type, atmosphere and moon count. The per-planet random streams were built so these stay cheap.
+- More per-planet overrides now that sizes and types work: atmosphere and moon count. The per-planet random streams were built so these stay cheap.
 - A gallery of starter maps, if I can find ones whose licence lets me ship them.
 - The browser test scripts committed to the repository. This is the one I'd actually do first.
 

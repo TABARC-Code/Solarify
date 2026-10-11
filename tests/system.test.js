@@ -67,13 +67,14 @@ var violations = {}, runs = 0, homeStats = {hz:[0, 0], hot:[0, 0], cold:[0, 0]};
 function bad(k, extra){ if (!violations[k]) violations[k] = extra || 'seen'; }
 function band(table, v){ for (var i = 0; i < table.length; i++){ var u = table[i][0]; if (u == null || v < u) return table[i][1]; } return table[table.length - 1][1]; }
 var CONFIGS = [];
+function fuzzTypes(seed){ var o = {}; for (var i = 1; i <= 16; i++) if ((seed * 3 + i) % 5 === 0) o[i] = (seed + i * 7) % 9; return o; }
 function fuzzDiam(seed){ var o = {}; for (var i = 1; i <= 16; i++) if ((seed + i) % 4 === 0) o[i] = (seed * i * 131) % 1001; return o; }
 function fuzzSizes(seed){ var o = {}; for (var i = 1; i <= 16; i++) if ((seed * i * 7) % 3 === 0) o[i] = (seed + i) % 7; return o; }
 ['M', 'K', 'G', 'F', 'A', 'B', 'RG', 'WD', 'X'].forEach(function(sk){
   ['hz', 'hot', 'cold', 'none'].forEach(function(home){
     for (var seed = 1; seed <= 24; seed++){
       CONFIGS.push({star:sk, mass:[15, 40, 85, 100, 160, 300, 600][seed % 7], age:[0, 3, 20, 46, 90, 120][seed % 6], inner:seed % 9, outer:(seed * 7) % 9, belts:seed % 4,
-        moonsInner:seed % 5, moonsOuter:(seed * 3) % 9, home:home, giants:['c', 'e', 'h'][seed % 3], companion:['n', 'n', 'v', 'c', 'm', 'w', 'd'][seed % 7], seed:seed * 977, sizes:fuzzSizes(seed), diam:fuzzDiam(seed)});
+        moonsInner:seed % 5, moonsOuter:(seed * 3) % 9, home:home, giants:['c', 'e', 'h'][seed % 3], companion:['n', 'n', 'v', 'c', 'm', 'w', 'd'][seed % 7], seed:seed * 977, sizes:fuzzSizes(seed), diam:fuzzDiam(seed), types:fuzzTypes(seed)});
     }
   });
 });
@@ -148,7 +149,7 @@ CONFIGS.forEach(function(cfg){
       if (p.climate !== band(T.climate, p.surfaceK)) bad('climate class does not match surface temperature', tag);
       if (p.atmosphere.none && p.atmosphere.pressureAtm !== 0) bad('pressure on an airless world', tag);
       if (!p.atmosphere.none && p.atmosphere.category !== band(T.pressureCategories, p.atmosphere.pressureAtm)) bad('pressure category', tag);
-      if (p.worldType === 'Garden' && g.ageGyr < S.GARDEN_MIN_AGE) bad('Garden world in a system too young', tag);
+      if (p.worldType === 'Garden' && g.ageGyr < S.GARDEN_MIN_AGE && !p.typeSet) bad('Garden world in a system too young', tag);
       if (p.worldType === 'Garden' && !(p.hydro >= 45 && p.hydro <= 88)) bad('Garden hydrographics', tag);
       if (p.worldType === 'Ocean' && !(p.hydro >= 88)) bad('Ocean hydrographics', tag);
       if (['Garden', 'Ocean'].indexOf(p.worldType) < 0 && p.hydro !== 0) bad('liquid oceans on a non-ocean world', tag);
@@ -163,7 +164,8 @@ CONFIGS.forEach(function(cfg){
         else if (sc === 'Small') okTypes = BBr <= 80 ? ['Hadean'] : BBr <= 140 ? ['Ice'] : ['Rock'];
         else if (sc === 'Standard') okTypes = BBr <= 80 ? ['Hadean'] : BBr <= 150 ? ['Ice'] : BBr <= 230 ? ['Ammonia', 'Ice'] : BBr <= 240 ? ['Ice'] : BBr <= 320 ? ['Garden', 'Ocean'] : BBr <= 500 ? ['Greenhouse'] : ['Chthonian'];
         else okTypes = BBr <= 150 ? ['Ice'] : BBr <= 230 ? ['Ammonia', 'Ice'] : BBr <= 240 ? ['Ice'] : BBr <= 320 ? ['Garden', 'Ocean'] : BBr <= 500 ? ['Greenhouse'] : ['Chthonian'];
-        if (okTypes.indexOf(p.worldType) < 0 && !(p.worldType === 'Ocean' && p.young)) bad('world type does not match the classification table', tag + ' ' + sc + ' ' + BBr.toFixed(0) + 'K ' + p.worldType);
+        if (p.typeSet && p.typeOptions.indexOf(p.worldType) < 0) bad('forced type not allowed for its class', tag);
+        if (okTypes.indexOf(p.worldType) < 0 && !(p.worldType === 'Ocean' && p.young) && !p.typeSet) bad('world type does not match the classification table', tag + ' ' + sc + ' ' + BBr.toFixed(0) + 'K ' + p.worldType);
       }
       if (['None', 'Light', 'Moderate', 'Heavy', 'Extreme'].indexOf(p.volcanic) < 0) bad('volcanic label', tag);
       if (p.affinity !== p.resources.rvm + p.habitability) bad('affinity = resource value + habitability', tag);
@@ -193,8 +195,8 @@ CONFIGS.forEach(function(cfg){
   var homes = planets.filter(function(p){ return p.home; });
   if (cfg.home === 'none' || empty ? homes.length !== 0 : homes.length !== 1) bad('home count', tag + ' ' + homes.length);
   if (homes.length === 1){
-    var h = homes[0], shrunk = h.sizeSet && ['Tiny', 'Small'].indexOf(h.sizeClass) >= 0, tried = !shrunk && !/left no room|Only the home world/.test(noteText);
-    if (!shrunk && ['Standard', 'Large'].indexOf(h.sizeClass) < 0) bad('home world is not Standard or Large', tag);
+    var h = homes[0], shrunk = (h.sizeSet && ['Tiny', 'Small'].indexOf(h.sizeClass) >= 0) || h.typeSet, tried = !shrunk && !/left no room|Only the home world/.test(noteText);
+    if (!(h.sizeSet || h.typeSet) && ['Standard', 'Large'].indexOf(h.sizeClass) < 0) bad('home world is not Standard or Large', tag);
     if (cfg.home === 'hz' && tried){ homeStats.hz[0]++; if (h.zone === 'in' || (g.hz.rough && true)) homeStats.hz[1]++; if (['Garden', 'Ocean'].indexOf(h.worldType) < 0) bad('hz home is not temperate or ocean', tag + h.worldType); }
     if (cfg.home === 'hot' && tried){ homeStats.hot[0]++; if (h.zone === 'inside') homeStats.hot[1]++; if (h.worldType !== 'Greenhouse') bad('hot home is not a greenhouse world', tag + h.worldType); }
     if (cfg.home === 'cold' && tried){ homeStats.cold[0]++; if (h.zone === 'beyond') homeStats.cold[1]++; if (['Ice', 'Ammonia'].indexOf(h.worldType) < 0) bad('cold home is not ice or ammonia', tag + h.worldType); }
@@ -285,6 +287,30 @@ var dLink = S.encodeCfg({star:'G', seed:5, sizes:{1:0}, diam:{2:537, 4:1000, 3:1
 check('Diameter positions survive a link round trip, with bad entries dropped', /\.1x0\.2x537_4x1000$/.test(dLink) && JSON.stringify(S.decodeCfg(dLink).diam) === '{"2":537,"4":1000}', dLink);
 check('A link with no diameters has no extra field', S.encodeCfg({star:'G', seed:5}).split('.').length === 14);
 check('Malformed diameter fields are refused', ['4.G.0.46.4.4.1.1.3.hz.c.n.5.-.2x1001', '4.G.0.46.4.4.1.1.3.hz.c.n.5.-.x', '4.G.0.46.4.4.1.1.3.hz.c.n.5.-.2x5_'].every(function(t){ return S.decodeCfg(t) === null; }));
+
+
+/* --- world type override --- */
+var tb = Object.assign({}, base, {home:'none', age:46}), tg0 = S.generate(tb);
+var tg0p = q(tg0, 'p2');
+var wantType = tg0p.typeOptions.filter(function(t){ return t !== tg0p.worldType; })[0], wantIdx = S.TYPE_LIST.indexOf(wantType);
+var tg1 = S.generate(Object.assign({}, tb, {types:{2:wantIdx}})), tg1p = q(tg1, 'p2');
+check('A type override sets the world type and flags it, keeping the size class', tg1p.worldType === wantType && tg1p.typeSet === true && tg1p.sizeClass === tg0p.sizeClass && tg0p.typeSet === false, tg0p.worldType + ' to ' + tg1p.worldType);
+check('The automatic type is remembered for the "Auto (...)" entry', tg1p.typeAuto === tg0p.worldType);
+check('Changing one planet\'s type leaves every other planet exactly as it was', (function(){ var f = function(g){ return JSON.stringify(g.bodies.filter(function(b){ return b.id !== 'p2' && !/^p2m/.test(b.id); })); }; return f(tg0) === f(tg1); })());
+check('A type not allowed for the size class is ignored', (function(){ var bad = S.TYPE_LIST.filter(function(t){ return tg0p.typeOptions.indexOf(t) < 0; })[0], g = S.generate(Object.assign({}, tb, {types:{2:S.TYPE_LIST.indexOf(bad)}})), b = q(g, 'p2'); return !b.typeSet && b.worldType === tg0p.worldType; })());
+check('Every type each size class lists can be generated, with gravity = density x diameter and a climate', (function(){
+  var ok = true;
+  S.SIZE_ORDER.forEach(function(sc, si){ S.TYPES_BY_SIZE[sc].forEach(function(t){
+    var g = S.generate(Object.assign({}, tb, {sizes:{2:si}, types:{2:S.TYPE_LIST.indexOf(t)}})), b = q(g, 'p2');
+    if (b.worldType !== t || b.sizeClass !== sc || !b.climate || !isFinite(b.surfaceK) || !near(b.gravity, b.density * b.radiusKm / S.REARTH_KM, 1e-9)) ok = false;
+  }); });
+  return ok; })());
+check('A temperate world forced into a young system keeps its type and a note says it is unusual', (function(){ var g = S.generate(Object.assign({}, tb, {age:5, sizes:{2:2}, types:{2:0}})); return q(g, 'p2').worldType === 'Garden' && /your call/.test(g.notes.join(' ')); })());
+var tLink = S.encodeCfg({star:'G', seed:5, types:{2:4, 3:0}});
+check('Types survive a link round trip, with a placeholder diameter field', /\.-\.-\.2x4_3x0$/.test(tLink) && JSON.stringify(S.decodeCfg(tLink).types) === '{"2":4,"3":0}', tLink);
+check('Links without types are unchanged', S.encodeCfg({star:'G', seed:5, diam:{2:5}}).split('.').length === 15 && S.encodeCfg({star:'G', seed:5}).split('.').length === 14);
+check('Malformed type fields are refused', ['4.G.0.46.4.4.1.1.3.hz.c.n.5.-.-.2x9x', '4.G.0.46.4.4.1.1.3.hz.c.n.5.-.-.x', '4.G.0.46.4.4.1.1.3.hz.c.n.5.-.-.2x12', '4.G.0.46.4.4.1.1.3.hz.c.n.5.-.-.-.-'].every(function(t){ return S.decodeCfg(t) === null; }));
+check('A type index beyond the list is dropped on cleanup', JSON.stringify(S.normalise({star:'G', types:{1:9, 2:8}}).types) === '{"2":8}');
 
 console.log(failed ? '\n' + failed + ' of ' + results.length + ' FAILED' : '\nAll ' + results.length + ' checks passed.');
 process.exit(failed ? 1 : 0);
