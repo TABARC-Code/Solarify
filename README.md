@@ -93,7 +93,9 @@ Size isn't just a scale knob. Type, atmosphere, gravity, mass, surface temperatu
 
 Two limits. A home world made Tiny or Small can't hold the habitable-zone brief, so it is typed by temperature like any other world and a note says so. And the choice belongs to a planet's slot (rocky planets first, then giants), so changing how many planets you ask for can move a slot to a different planet. A rocky size never lands on a giant, or the reverse. **Roll a new system** clears all size choices, because they described the old roll. Our own Solar System has real sizes and no picker.
 
-You pick a size class, not an exact diameter. The diameter inside the class is still rolled from the seed.
+**Exact diameter** is a slider just underneath. It runs from the smallest to the largest diameter the class allows for that planet (the limits depend on its temperature and density, so they differ from planet to planet) and shows the result in Earth diameters. Gravity and mass follow the diameter. Type and class don't change, because the slider stays inside the class. For a giant the range is the spread of that class in the tables, and mass follows from density. **Rolled diameter** puts the original back. Picking a different class drops the slider setting and starts again from that class's own roll.
+
+The slider's position is stored as a fraction of the class range (0 to 1000), in the share link after the sizes field, for example `.2x537`. The field only appears when you've used it, so links without it are unchanged.
 
 ## Your own images
 
@@ -178,7 +180,7 @@ No dependencies, no network. I ran them on Node 22. Other versions are untested.
 
 `orbits.test.js` has 28 checks on the orbit maths against real events: equinoxes and solstices (with a precession correction, explained in the file header), Earth's perihelion and aphelion, planetary oppositions, Kepler's equation, and Moon phase against real full and new moons.
 
-`system.test.js` has 52 checks: published numbers, arithmetic the builder promises, and a fuzz run of 864 random systems checking what must always hold. Orbits never cross, nothing sits inside its star, planets stay out of a companion's forbidden zone, belts keep clear, moons stay inside the stability limit, and the same seed gives the same system. Both files passed when I last ran them. I also pushed 20,000 fully random systems through the same checks once, and those passed too.
+`system.test.js` has 61 checks: published numbers, arithmetic the builder promises, and a fuzz run of 864 random systems checking what must always hold. Orbits never cross, nothing sits inside its star, planets stay out of a companion's forbidden zone, belts keep clear, moons stay inside the stability limit, and the same seed gives the same system. Both files passed when I last ran them. I also pushed 20,000 fully random systems through the same checks once, and those passed too.
 
 The interface has no automated tests in this repository. I checked it with throwaway Playwright scripts in headless Chromium, covering selection, keys, time, scale modes, the builder form, both companion-star cases, belts, the planet panel, share links, dropping images, project files (including hostile ones), a phone-sized viewport and the no-WebGL fallback. Those scripts aren't included, so treat the interface as looked at, not covered.
 

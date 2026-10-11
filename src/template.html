@@ -348,6 +348,9 @@
     <div class="row" id="sizeRow" hidden>
       <span class="label">Planet size</span>
       <select id="sizeSel" aria-label="Planet size class"></select>
+      <span class="label" style="margin-top:14px">Exact diameter</span>
+      <div class="slide"><input type="range" id="sizeDiam" min="0" max="1000" step="1" value="500" aria-label="Exact diameter inside the size class"><span class="num wide" id="oDiam"></span></div>
+      <div class="minirow gap"><button class="action" id="diamReset" disabled>Rolled diameter</button></div>
       <p class="advice" id="sizeMsg"></p>
     </div>
     <div class="row">

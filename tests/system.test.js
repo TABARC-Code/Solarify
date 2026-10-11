@@ -67,12 +67,13 @@ var violations = {}, runs = 0, homeStats = {hz:[0, 0], hot:[0, 0], cold:[0, 0]};
 function bad(k, extra){ if (!violations[k]) violations[k] = extra || 'seen'; }
 function band(table, v){ for (var i = 0; i < table.length; i++){ var u = table[i][0]; if (u == null || v < u) return table[i][1]; } return table[table.length - 1][1]; }
 var CONFIGS = [];
+function fuzzDiam(seed){ var o = {}; for (var i = 1; i <= 16; i++) if ((seed + i) % 4 === 0) o[i] = (seed * i * 131) % 1001; return o; }
 function fuzzSizes(seed){ var o = {}; for (var i = 1; i <= 16; i++) if ((seed * i * 7) % 3 === 0) o[i] = (seed + i) % 7; return o; }
 ['M', 'K', 'G', 'F', 'A', 'B', 'RG', 'WD', 'X'].forEach(function(sk){
   ['hz', 'hot', 'cold', 'none'].forEach(function(home){
     for (var seed = 1; seed <= 24; seed++){
       CONFIGS.push({star:sk, mass:[15, 40, 85, 100, 160, 300, 600][seed % 7], age:[0, 3, 20, 46, 90, 120][seed % 6], inner:seed % 9, outer:(seed * 7) % 9, belts:seed % 4,
-        moonsInner:seed % 5, moonsOuter:(seed * 3) % 9, home:home, giants:['c', 'e', 'h'][seed % 3], companion:['n', 'n', 'v', 'c', 'm', 'w', 'd'][seed % 7], seed:seed * 977, sizes:fuzzSizes(seed)});
+        moonsInner:seed % 5, moonsOuter:(seed * 3) % 9, home:home, giants:['c', 'e', 'h'][seed % 3], companion:['n', 'n', 'v', 'c', 'm', 'w', 'd'][seed % 7], seed:seed * 977, sizes:fuzzSizes(seed), diam:fuzzDiam(seed)});
     }
   });
 });
@@ -134,7 +135,8 @@ CONFIGS.forEach(function(cfg){
     if (p.giant){
       if (['Small', 'Medium', 'Large'].indexOf(p.ggClass) < 0) bad('giant class', tag);
       var col = p.ggClass === 'Small' ? 1 : p.ggClass === 'Medium' ? 3 : 5;
-      var okRow = gasRows.some(function(r){ return near(r[col], p.massEarth, 1e-9) && near(r[col + 1], p.density, 1e-9); });
+      var okRow = gasRows.some(function(r){ return (p.diamSet || near(r[col], p.massEarth, 1e-9)) && near(r[col + 1], p.density, 1e-9); });   // with an exact diameter, mass follows density x diameter cubed
+      if (D < p.diamMin - 1e-9 || D > p.diamMax + 1e-9) bad('giant diameter outside its class range', tag);
       if (!okRow) bad('giant mass and density are not a table row', tag);
       if (!near(D, Math.cbrt(p.massEarth / p.density), 1e-9 * D)) bad('giant diameter', tag);
     } else {
@@ -265,6 +267,24 @@ var link = S.encodeCfg(cfgS);
 check('Sizes survive a share link round trip', JSON.stringify(S.decodeCfg(link).sizes) === JSON.stringify(cfgS.sizes) && /\.1x0_3x2_5x6$/.test(link), link);
 check('A config with no sizes ends in a dash', /\.-$/.test(S.encodeCfg({star:'G', seed:5})));
 check('Malformed size fields are refused', ['4.G.0.46.4.4.1.1.3.hz.c.n.5.1x7', '4.G.0.46.4.4.1.1.3.hz.c.n.5.x', '4.G.0.46.4.4.1.1.3.hz.c.n.5.1x1_', '4.G.0.46.4.4.1.1.3.hz.c.n.5'].every(function(t){ return S.decodeCfg(t) === null; }));
+
+
+/* --- exact diameter inside the size class --- */
+var gd0 = S.generate(base), gdLo = S.generate(Object.assign({}, base, {diam:{2:0}})), gdHi = S.generate(Object.assign({}, base, {diam:{2:1000}}));
+var q = function(g, id){ return g.bodies.filter(function(b){ return b.id === id; })[0]; };
+check('Diameter position 0 and 1000 give the class limits, and 500 sits between them',
+  (function(){ var lo = q(gdLo, 'p2'), hi = q(gdHi, 'p2'), mid = q(S.generate(Object.assign({}, base, {diam:{2:500}})), 'p2'), k = S.REARTH_KM;
+    return near(lo.radiusKm / k, lo.diamMin, 1e-9) && near(hi.radiusKm / k, hi.diamMax, 1e-9) && near(mid.radiusKm / k, (lo.diamMin + hi.diamMax) / 2, 1e-6); })());
+check('Diameter stays inside the size class whatever the slider says, and gravity and mass follow it',
+  (function(){ var b = q(gdHi, 'p2'); return near(b.gravity, b.density * b.radiusKm / S.REARTH_KM, 1e-9) && near(b.massEarth, b.density * Math.pow(b.radiusKm / S.REARTH_KM, 3), 1e-9); })());
+check('Without an override the panel gets the rolled position, and flags it as not set', q(gd0, 'p2').diamSet === false && q(gd0, 'p2').diamT >= 0 && q(gd0, 'p2').diamT <= 1);
+check('An exact diameter changes only that planet', (function(){ var f = function(g){ return JSON.stringify(g.bodies.filter(function(b){ return b.id !== 'p2' && !/^p2m/.test(b.id); })); }; return f(gd0) === f(gdLo) && f(gd0) === f(gdHi); })());
+check('Resizing the planet keeps its type and class (same size class, only the diameter moves)', q(gdLo, 'p2').sizeClass === q(gd0, 'p2').sizeClass && q(gdLo, 'p2').worldType === q(gd0, 'p2').worldType);
+check('A giant takes an exact diameter too, and mass follows density times diameter cubed', (function(){ var a = q(S.generate(Object.assign({}, base, {diam:{6:1000}})), 'p6'), k = S.REARTH_KM; return near(a.radiusKm / k, a.diamMax, 1e-9) && near(a.massEarth, a.density * Math.pow(a.radiusKm / k, 3), 1e-6); })());
+var dLink = S.encodeCfg({star:'G', seed:5, sizes:{1:0}, diam:{2:537, 4:1000, 3:1001, 0:5}});
+check('Diameter positions survive a link round trip, with bad entries dropped', /\.1x0\.2x537_4x1000$/.test(dLink) && JSON.stringify(S.decodeCfg(dLink).diam) === '{"2":537,"4":1000}', dLink);
+check('A link with no diameters has no extra field', S.encodeCfg({star:'G', seed:5}).split('.').length === 14);
+check('Malformed diameter fields are refused', ['4.G.0.46.4.4.1.1.3.hz.c.n.5.-.2x1001', '4.G.0.46.4.4.1.1.3.hz.c.n.5.-.x', '4.G.0.46.4.4.1.1.3.hz.c.n.5.-.2x5_'].every(function(t){ return S.decodeCfg(t) === null; }));
 
 console.log(failed ? '\n' + failed + ' of ' + results.length + ' FAILED' : '\nAll ' + results.length + ' checks passed.');
 process.exit(failed ? 1 : 0);
