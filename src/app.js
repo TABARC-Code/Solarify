@@ -51,7 +51,7 @@ function solarDef(){
      periodDays:365.2, incl:0.0, ecc:0.017, color:0x3a74b8, key:'3', gen:{type:'sol', id:'earth'}},
     {id:'mars', name:'Mars', kind:'Planet, rocky', radiusKm:3396, rotH:24.6, obliq:25.2,
      periodDays:687.0, incl:1.8, ecc:0.094, color:0xb4623a, key:'4', gen:{type:'sol', id:'mars'}},
-    {id:'jupiter', name:'Jupiter', kind:'Planet, gas giant', radiusKm:71492, rotH:9.9, obliq:3.1,
+    {id:'jupiter', name:'Jupiter', kind:'Planet, gas giant', radiusKm:71492, trojans:true, rotH:9.9, obliq:3.1,
      periodDays:4331, incl:1.3, ecc:0.049, color:0xc8a07a, key:'5', gen:{type:'sol', id:'jupiter'}},
     {id:'saturn', name:'Saturn', kind:'Planet, gas giant', radiusKm:60268, rotH:10.7, obliq:26.7,
      periodDays:10747, incl:2.5, ecc:0.052, color:0xd8c08a, key:'6', rings:true, gen:{type:'sol', id:'saturn'}},
@@ -577,7 +577,7 @@ function teardownSystem(){
   BODIES.forEach(destroyBody);
   BODIES = []; PLANETS = []; MOONS = []; byId = {};
   texQueue = []; texJob = null; texJobItem = null;
-  clearBelts();
+  clearBelts(); clearTrojans();
   while (zoneGroup.children.length){
     var c = zoneGroup.children[0]; zoneGroup.remove(c); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose();
   }
@@ -728,7 +728,7 @@ function updateBodies(dt){
     });
   }
   sys.stars.forEach(function(st){ st.glow.scale.setScalar(Math.max(st.R * 5.5, 0)); });
-  updateBelts();
+  updateBelts(); updateTrojans(T);
 }
 function buildOrbit(b, T){
   var s = elementsAt(b.el, T), n = 360, pts = new Float32Array(n * 3), p = {x:0, y:0, z:0};
@@ -789,6 +789,49 @@ function updateBelts(){ BELTS.forEach(function(bt){ bt.group.rotation.y = beltAn
 function beltLabelPoint(bt){
   var th = beltAngle(bt); beltAU.x = bt.def.a * Math.cos(th); beltAU.y = bt.def.a * Math.sin(th); beltAU.z = 0;
   return viewPos(beltAU, beltTmp);
+}
+
+/* Trojans: two swarms sharing a planet's orbit, 60 degrees ahead (L4) and behind (L5). Cosmetic particles round each point,
+   placed fresh every frame from the point's real position on the orbit, so they keep pace with the planet. */
+var TROJANS = [], trojanRoot = new THREE.Group(); universe.add(trojanRoot);
+var trojAU = {x:0, y:0, z:0}, trojTmp = {x:0, y:0, z:0};
+function clearTrojans(){
+  TROJANS.forEach(function(tr){ tr.points.geometry.dispose(); tr.points.material.dispose(); trojanRoot.remove(tr.points); });
+  TROJANS = [];
+}
+function makeTrojans(){
+  clearTrojans();
+  PLANETS.forEach(function(b){
+    if (!b.trojans || b.isStar) return;
+    [60, -60].forEach(function(side, k){
+      var N = 160, off = new Float32Array(N * 3), s = (b.id.charCodeAt(1) * 7919 + k * 104729 + 17) >>> 0;
+      function rnd(){ s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }
+      for (var i = 0; i < N; i++){
+        var u = rnd() * 2 - 1;
+        off[i*3] = u * Math.abs(u) * 0.35;              // along the orbit, radians, bunched towards the point
+        off[i*3+1] = (rnd() * 2 - 1) * 0.06;            // in and out, fraction of the distance
+        off[i*3+2] = (rnd() * 2 - 1) * 0.05;            // above and below
+      }
+      var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+      var pts = new THREE.Points(g, new THREE.PointsMaterial({size:1.5, sizeAttenuation:false, color:0xb8a58c, transparent:true, opacity:0.75, depthWrite:false}));
+      pts.frustumCulled = false; trojanRoot.add(pts);
+      var el = {a:b.el.a, e:b.el.e, I:b.el.I, L:[b.el.L[0] + side, b.el.L[1]], lp:b.el.lp, ln:b.el.ln};
+      TROJANS.push({body:b, el:el, off:off, points:pts});
+    });
+  });
+}
+function updateTrojans(T){
+  TROJANS.forEach(function(tr){
+    tr.points.visible = state.orbits; if (!state.orbits) return;
+    heliocentric(tr.el, T, trojTmp);
+    var r = Math.hypot(trojTmp.x, trojTmp.y), th = Math.atan2(trojTmp.y, trojTmp.x), pos = tr.points.geometry.attributes.position.array, off = tr.off;
+    for (var i = 0; i < off.length; i += 3){
+      var rr = r * (1 + off[i+1]), tt = th + off[i];
+      trojAU.x = rr * Math.cos(tt); trojAU.y = rr * Math.sin(tt); trojAU.z = trojTmp.z + off[i+2] * r;
+      viewPos(trojAU, tmpV); pos[i] = tmpV.x; pos[i+1] = tmpV.y; pos[i+2] = tmpV.z;
+    }
+    tr.points.geometry.attributes.position.needsUpdate = true;
+  });
 }
 
 /* The habitable zone (a green band) and the snow line (dashed), drawn flat in the orbit plane. */
@@ -967,8 +1010,9 @@ function fmtHours(h){ return h < 48 ? fmtNum(h, 1) + ' hours' : fmtNum(h / 24, 1
 function fmtPeriod(d){ return d < 1000 ? fmtNum(d, 1) + ' days' : fmtNum(d / 365.25, 1) + ' years'; }
 function fmtLight(sec){
   if (sec < 90) return fmtNum(sec, 0) + ' seconds';
-  if (sec < 5400) return Math.floor(sec / 60) + ' min ' + Math.round(sec % 60) + ' s';
-  return Math.floor(sec / 3600) + ' h ' + Math.round((sec % 3600) / 60) + ' min';
+  var t = Math.round(sec);                                   // round once, so it never says '60 s' or '60 min'
+  if (sec < 5400) return Math.floor(t / 60) + ' min ' + (t % 60) + ' s';
+  t = Math.round(sec / 60); return Math.floor(t / 60) + ' h ' + (t % 60) + ' min';
 }
 function fmtMass(me){ return me >= 100 ? fmtNum(me / 317.83, 2) + ' Jupiter masses' : fmtNum(me, me < 10 ? 2 : 1) + ' Earth masses'; }
 function fmtGyr(g){ return g < 1 ? fmtNum(g * 1000, 0) + ' million years' : fmtNum(g, 1) + ' billion years'; }
@@ -979,7 +1023,7 @@ function zoneText(a){
 var liveEls = {};
 function kc(k){ return fmtNum(k) + ' K (' + fmtNum(k - 273.15) + ' °C)'; }
 function showSelected(b){
-  updateSizeRow(b);
+  updateSizeRow(b); updateTravelRow(b);
   var custom = sys.mode === 'custom', primary = byId.sun;
   var pair = custom && sys.binary && sys.binary.regime === 'P';
   $('selName').textContent = b.name + (b.home ? ' (Home)' : ''); $('selKind').textContent = b.kind;
@@ -1035,9 +1079,19 @@ function showSelected(b){
       add('Volcanic activity', b.volcanic);
       add('Resources', b.resources.label + ' (' + (b.resources.rvm > 0 ? '+' : '') + b.resources.rvm + ')');
       add('Habitability', (b.habitability > 0 ? '+' : '') + b.habitability + ', affinity ' + (b.affinity > 0 ? '+' : '') + b.affinity);
+      add('Escape velocity', fmtNum(b.escapeKms, 1) + ' km/s');
+      add('Can hold on to', b.gasesHeld.length ? b.gasesHeld.join(', ').replace(/(\d)/g, function(d){ return '₀₁₂₃₄₅₆₇₈₉'[d]; }) + ' (rough, at surface temperature)' : 'Nothing light; any air leaks away');
+      add('Magnetic field', b.magnetic + (b.magnetic === 'None' ? ' (the star\'s wind strips the air over time)' : ''));
+      add('Sky', b.sky);
     } else if (custom){
       add('Blackbody temperature', kc(b.bbK) + ' (cloud tops differ)');
+      if (b.escapeKms) add('Escape velocity', fmtNum(b.escapeKms, 1) + ' km/s (at the cloud tops)');
     }
+    if (custom && b.hillKm){
+      add('Hill sphere', fmtNum(b.hillKm / 1e6, b.hillKm < 1e7 ? 2 : 1) + ' million km (moons stay inside about a third of it)');
+      add('Roche limit', fmtNum(b.rocheKm) + ' km for an icy moon (closer in, it would break up into rings)');
+    }
+    if (b.trojans) add('Trojan asteroids', 'Two swarms, 60° ahead of it and 60° behind (L4 and L5)' + (custom ? '' : ', thousands known'));
     if (custom && b.moonBodies && b.moonBodies.length) add('Moons', String(b.moonBodies.length));
   }
   if (custom && b.isStar && b.primary){
@@ -1061,6 +1115,7 @@ function showSelected(b){
 }
 function updateLive(){
   var b = byId[state.focus]; if (!b) return;
+  updateTravelLive(b);
   var r = plan[b.id];
   if (r && liveEls.dist){
     var au = Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z), km = au * AU_KM;
@@ -1082,6 +1137,46 @@ function updateLive(){
     liveEls.phase.textContent = name + ', ' + Math.round(illum * 100) + '% lit (mean)';
   }
 }
+
+/* Travel: from the selected body (a moon travels as its planet) to another planet. Hohmann figures depend only on the orbits;
+   light delay and constant-thrust times use where the two are right now, so they tick over as time runs. */
+var travelLive = {}, travelFrom = null, travelDest = null;
+function orbiter(b){ return b ? (b.isMoon ? b.parentBody : b) : null; }
+function updateTravelRow(b){
+  var from = orbiter(b), row = $('travelRow');
+  var dests = PLANETS.filter(function(p){ return !p.isStar && p !== from; });
+  row.hidden = !from || from.isStar || !dests.length; if (row.hidden){ travelFrom = null; return; }
+  var sel = $('travelTo'), keep = travelDest && dests.indexOf(travelDest) >= 0 ? travelDest : dests[0];
+  sel.textContent = '';
+  dests.forEach(function(p){ var o = document.createElement('option'); o.value = p.id; o.textContent = p.name + (p.home ? ' (home)' : ''); sel.appendChild(o); });
+  sel.value = keep.id; travelFrom = from; travelDest = keep;
+  showTravel();
+}
+function showTravel(){
+  var dl = $('travelFacts'); dl.textContent = ''; travelLive = {};
+  function add(k, v, live){
+    var dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = k; dd.textContent = v; if (live){ dd.className = 'live'; travelLive[live] = dd; }
+    dl.appendChild(dt); dl.appendChild(dd);
+  }
+  var M = sys.mode === 'custom' ? (sys.orbitMass || 1) : 1, h = O.hohmann(travelFrom.el.a[0], travelDest.el.a[0], M);
+  add('Transfer (Hohmann)', fmtNum(h.dv1, 1) + ' + ' + fmtNum(h.dv2, 1) + ' = ' + fmtNum(h.total, 1) + ' km/s');
+  add('Transfer time', fmtPeriod(h.days));
+  add('Light delay now', '', 'light');
+  add('At 1 g, now', '', 'g1');
+  add('At 0.1 g, now', '', 'g01');
+  updateTravelLive();
+}
+function fmtDuration(sec){ var h = sec / 3600; return h < 48 ? fmtNum(h, 1) + ' hours' : fmtNum(h / 24, 1) + ' days'; }
+function updateTravelLive(){
+  if (!travelFrom || !travelLive.light) return;
+  var a = plan[travelFrom.id], c = plan[travelDest.id]; if (!a || !c) return;
+  var d = Math.hypot(a.x - c.x, a.y - c.y, a.z - c.z);
+  travelLive.light.textContent = fmtLight(O.lightSeconds(d)) + ' (' + fmtNum(d, 2) + ' AU apart)';
+  travelLive.g1.textContent = fmtDuration(O.brachistochrone(d, 1));
+  travelLive.g01.textContent = fmtDuration(O.brachistochrone(d, 0.1));
+}
+$('travelTo').addEventListener('change', function(){ travelDest = byId[this.value] || travelDest; showTravel(); });
 
 /* Body buttons: the star and planets always; the moons of whichever planet you are looking at underneath. */
 function buildBodyList(){
@@ -1238,10 +1333,14 @@ var drawer = $('drawer'), handleEl = $('handle');
 function syncDrawer(){
   var wide = window.innerWidth >= 820, closed = !wide && drawer.classList.contains('closed');
   handleEl.setAttribute('aria-expanded', String(!closed));
-  var h = wide ? 0 : drawer.getBoundingClientRect().height;
+  var h = wide ? 0 : closed ? 46 : drawer.getBoundingClientRect().height;     // closing slides it down; its height doesn't change, so use the handle's
   document.documentElement.style.setProperty('--drawer-h', wide ? '62px' : Math.round(Math.min(h, window.innerHeight * 0.66)) + 'px');
 }
 handleEl.addEventListener('click', function(){ drawer.classList.toggle('closed'); syncDrawer(); });
+handleEl.addEventListener('keydown', function(e){
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault(); e.stopPropagation(); drawer.classList.toggle('closed'); syncDrawer();     // Space here opens the drawer, not pause
+});
 if (window.innerWidth < 820) drawer.classList.add('closed');
 window.addEventListener('resize', syncDrawer);
 if (window.ResizeObserver) new ResizeObserver(syncDrawer).observe(drawer);
@@ -1512,7 +1611,7 @@ function loadSystem(def){
   var rocks = PLANETS.filter(function(p){ return !p.isStar; });
   def.innerA = rocks.length ? Math.min.apply(null, rocks.map(function(p){ return p.el.a[0] * (1 - p.el.e[0]); })) : null;
   BODIES.forEach(createBody);
-  makeBelts();
+  makeBelts(); makeTrojans();
   queueTextures();
 
   // clock
@@ -1578,6 +1677,11 @@ function setForm(c){
 // Every control rebuilds the system as soon as you let go of it, so there is no Generate button to find.
 function onFormChange(e){
   var id = e.target.id;
+  // Overrides belong to planet slots. Anything but a moon count can reshuffle the planets, so they are dropped rather than landing on the wrong planet.
+  if (id !== 'fMoonsInner' && id !== 'fMoonsOuter' && (Object.keys(curSizes).length || Object.keys(curDiam).length || Object.keys(curTypes).length)){
+    curSizes = {}; curDiam = {}; curTypes = {};
+    if (sys && sys.mode === 'custom') toast('Planet size, diameter and type choices cleared: that change reshuffles the planets.');
+  }
   if (id === 'fMoonsOuter') giantMoonsTouched = true;
   if (id === 'fMoonsInner' && !giantMoonsTouched) $('fMoonsOuter').value = Math.min(8, 2 * (+$('fMoonsInner').value));
   if (id === 'fStar' && $('fStar').value === 'X') $('advanced').open = true;
@@ -1616,14 +1720,14 @@ function updateSizeRow(b){
   var tw = $('typeWrap'); tw.hidden = !!b.giant;
   if (!b.giant){
     var ts = $('typeSel'); ts.textContent = '';
-    var ta = document.createElement('option'); ta.value = 'auto'; ta.textContent = 'Auto (' + TYPE_LABELS[b.typeAuto] + ')'; ts.appendChild(ta);
+    var ta = document.createElement('option'); ta.value = 'auto'; ta.textContent = 'Auto: ' + TYPE_LABELS[b.typeAuto]; ts.appendChild(ta);
     b.typeOptions.forEach(function(t){ var o = document.createElement('option'); o.value = String(SYS.TYPE_LIST.indexOf(t)); o.textContent = TYPE_LABELS[t]; ts.appendChild(o); });
     ts.value = b.typeSet ? String(SYS.TYPE_LIST.indexOf(b.worldType)) : 'auto';
   }
   var sl = $('sizeDiam'); sl.value = String(Math.round(b.diamT * 1000)); $('diamReset').disabled = !b.diamSet; showDiam(b);
   $('sizeMsg').textContent = b.giant
-    ? 'Size class picks the giant\'s kind; the slider moves its diameter inside the class range, and mass follows from density. Moons follow.'
-    : 'Size class sets the type, atmosphere, temperature, resources and moons; World type overrides the type for that class (atmosphere, temperature and the rest follow); the slider moves the diameter inside the class limits, and gravity and mass follow. The other planets stay as they are.';
+    ? 'Size picks the kind of giant and the slider sets its diameter inside that range; mass and moons follow. Changing anything above except moon counts clears these.'
+    : 'Size picks the class, World type picks what it is made of, and the slider sets the diameter inside the class. Air, temperature, gravity and moons follow. Other planets stay as they are. Changing anything above except moon counts clears these.';
 }
 function showDiam(b){
   var t = +$('sizeDiam').value / 1000, D = b.diamMin + t * (b.diamMax - b.diamMin);
@@ -1754,7 +1858,7 @@ window.addEventListener('resize', function(){ layoutView(); if (state.overview) 
 
 // A small handle, mainly so the maths can be checked from the console and the tests.
 window.solarify = {
-  version: '0.6.0',
+  version: '0.7.0',
   positionsAU: function(when){
     var jd = typeof when === 'number' ? when : jdFromDate(new Date(when)), T = centuries(jd), out = {};
     PLANETS.forEach(function(b){
@@ -1771,9 +1875,9 @@ window.solarify = {
   screenOf: function(id){ var b = byId[id]; return b && b.screen ? {x:b.screen.x, y:b.screen.y, behind:b.screen.behind, pxRadius:b.pxRadius} : null; },
   bodyScenePos: function(id){ var g = byId[id].group.position; return {x:g.x, y:g.y, z:g.z, r:Math.sqrt(g.x*g.x + g.y*g.y + g.z*g.z)}; },
   mode: function(){ return sys.mode; },
-  system: function(){ return {mode:sys.mode, name:sys.name, unit:sys.unit, hz:sys.hz, frost:sys.frost, notes:sys.notes, counts:sys.counts || null, belts:(sys.belts || []).length, stars:sys.stars.length, regime:sys.binary ? sys.binary.regime : null, age:sys.ageGyr,
+  system: function(){ return {mode:sys.mode, name:sys.name, trojanSwarms:TROJANS.length, unit:sys.unit, hz:sys.hz, frost:sys.frost, notes:sys.notes, counts:sys.counts || null, belts:(sys.belts || []).length, stars:sys.stars.length, regime:sys.binary ? sys.binary.regime : null, age:sys.ageGyr,
     bodies:BODIES.map(function(b){ return {id:b.id, name:b.name, kind:b.kind, parent:b.parent || null, home:!!b.home, key:b.key, aAU:b.aAU || null, ecc:b.ecc || 0, texSize:b.texSize || 0,
-      radiusKm:b.radiusKm, sizeClass:b.sizeClass || null, ggClass:b.ggClass || null, worldType:b.worldType || null, diamMin:b.diamMin, diamMax:b.diamMax, diamT:b.diamT, diamSet:!!b.diamSet, typeSet:!!b.typeSet, typeAuto:b.typeAuto || null}; })}; },
+      radiusKm:b.radiusKm, sizeClass:b.sizeClass || null, ggClass:b.ggClass || null, worldType:b.worldType || null, diamMin:b.diamMin, diamMax:b.diamMax, diamT:b.diamT, diamSet:!!b.diamSet, trojans:!!b.trojans, typeSet:!!b.typeSet, typeAuto:b.typeAuto || null}; })}; },
   build: function(cfg){ return generateSystem(SYS.normalise(cfg)); },
   solar: function(){ return showSolar(); },
   openProject: openProject, maps: function(){ return Object.keys(userMaps[sys.mode]); }, hasMap: function(id){ return !!(byId[id] && byId[id].customTex); },

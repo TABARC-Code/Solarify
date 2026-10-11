@@ -18,6 +18,7 @@
  *     not 2025-01-10. A 'failure' of 31 degrees was just 34 days of Earth's orbit.
  */
 'use strict';
+function near2(a, b, tol){ return Math.abs(a - b) <= tol; }
 var O = require('../src/orbits.js');
 var DEG = O.DEG, results = [], failed = 0;
 
@@ -117,6 +118,15 @@ function elong(iso){ return O.moonElongation(jd(iso)) / DEG; }
   var e = elong(c[1]);
   check(c[0] + ': mean elongation near ' + c[2] + ' degrees (within 8)', Math.abs(diff(e, c[2])) <= 8, e.toFixed(1) + ' deg');
 });
+
+/* --- travel maths, against textbook figures --- */
+var O2 = require('../src/orbits.js'), hm = O2.hohmann(1, 1.524, 1);
+check('Earth to Mars Hohmann transfer: about 2.94 + 2.65 = 5.59 km/s', near2(hm.dv1, 2.94, 0.02) && near2(hm.dv2, 2.65, 0.02) && near2(hm.total, 5.59, 0.03), hm.dv1.toFixed(3) + ' + ' + hm.dv2.toFixed(3));
+check('Earth to Mars Hohmann transfer takes about 259 days', near2(hm.days, 259, 1.5), hm.days.toFixed(1) + ' days');
+var hb = O2.hohmann(1.524, 1, 1);
+check('The transfer costs the same and takes as long going inwards', near2(hb.total, hm.total, 1e-9) && near2(hb.days, hm.days, 1e-9));
+check('Light takes about 499 seconds to cross one AU', near2(O2.lightSeconds(1), 499.0, 0.1));
+check('One gravity, accelerate then decelerate, 1 AU: about 2.86 days (2 x sqrt(d / a))', near2(O2.brachistochrone(1, 1) / 86400, 2.86, 0.01), (O2.brachistochrone(1, 1) / 86400).toFixed(2) + ' days');
 
 console.log(failed ? '\n' + failed + ' of ' + results.length + ' FAILED' : '\nAll ' + results.length + ' checks passed.');
 process.exit(failed ? 1 : 0);

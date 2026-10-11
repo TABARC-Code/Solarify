@@ -110,7 +110,26 @@ function moonDirEcl(lambda, out, incl){
   return out;
 }
 
+/* ---- travel between orbits (rough, for play) ----
+ * hohmann(): the cheapest two-burn transfer between two circular, coplanar orbits round a central mass,
+ * ignoring the planets' own gravity (no escape or capture burns). Radii in AU, mass in Suns.
+ * Speeds in km/s, time in days. 29.7847 km/s is the circular speed at 1 AU round one solar mass.
+ * brachistochrone(): accelerate for half the distance, flip, decelerate for the rest, in a straight line.
+ * Ignores the star's gravity entirely, which is fair at a gravity or so and wrong at a hundredth of one.
+ */
+var V_AU = 29.7847, AU_M = 1.495978707e11, G0 = 9.80665, LIGHT_S_PER_AU = 499.004784;
+function hohmann(r1, r2, M){
+  M = M || 1;
+  var v1 = V_AU * Math.sqrt(M / r1), v2 = V_AU * Math.sqrt(M / r2), s = r1 + r2;
+  var dv1 = Math.abs(v1 * (Math.sqrt(2 * r2 / s) - 1)), dv2 = Math.abs(v2 * (1 - Math.sqrt(2 * r1 / s)));
+  var years = 0.5 * Math.pow(s / 2, 1.5) / Math.sqrt(M);
+  return {dv1:dv1, dv2:dv2, total:dv1 + dv2, days:years * 365.25};
+}
+function brachistochrone(dAU, gees){ return 2 * Math.sqrt(dAU * AU_M / (gees * G0)); }   // seconds
+function lightSeconds(dAU){ return dAU * LIGHT_S_PER_AU; }
+
 return {
+  hohmann:hohmann, brachistochrone:brachistochrone, lightSeconds:lightSeconds,
   ELEMENTS: ELEMENTS, elementsAt: elementsAt, solveKepler: solveKepler, heliocentric: heliocentric, toEcliptic: toEcliptic,
   jdFromDate: jdFromDate, dateFromJd: dateFromJd, centuries: centuries, precessionDeg: precessionDeg,
   moonElongation: moonElongation, moonDirEcl: moonDirEcl,

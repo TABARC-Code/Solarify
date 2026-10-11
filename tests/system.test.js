@@ -90,6 +90,7 @@ CONFIGS.forEach(function(cfg){
   var wantedGiants = empty ? 0 : Math.max(cfg.outer, cfg.giants === 'h' ? 1 : 0);
   if (giantN > wantedGiants || (giantN < wantedGiants && !/fit before the planet-forming limit/.test(noteText))) bad('giant count', tag + ' got ' + giantN + ' want ' + wantedGiants);
   var ids = {}; g.bodies.forEach(function(x){ if (ids[x.id]) bad('duplicate id', tag); ids[x.id] = 1; });
+  g.bodies.forEach(function(m){ if (!m.isMoon) return; var par = g.bodies.filter(function(x){ return x.id === m.parent; })[0]; if (m.moon.aKm < par.rocheKm) bad('moon inside the Roche limit', tag + ' ' + m.id); if (m.moon.aKm > par.hillKm) bad('moon outside the Hill sphere', tag + ' ' + m.id); });
   if (g.order.length !== g.bodies.length) bad('label order incomplete', tag);
   if (stars.length !== (binary ? 2 : 1)) bad('star count', tag);
   if (binary){
@@ -311,6 +312,35 @@ check('Types survive a link round trip, with a placeholder diameter field', /\.-
 check('Links without types are unchanged', S.encodeCfg({star:'G', seed:5, diam:{2:5}}).split('.').length === 15 && S.encodeCfg({star:'G', seed:5}).split('.').length === 14);
 check('Malformed type fields are refused', ['4.G.0.46.4.4.1.1.3.hz.c.n.5.-.-.2x9x', '4.G.0.46.4.4.1.1.3.hz.c.n.5.-.-.x', '4.G.0.46.4.4.1.1.3.hz.c.n.5.-.-.2x12', '4.G.0.46.4.4.1.1.3.hz.c.n.5.-.-.-.-'].every(function(t){ return S.decodeCfg(t) === null; }));
 check('A type index beyond the list is dropped on cleanup', JSON.stringify(S.normalise({star:'G', types:{1:9, 2:8}}).types) === '{"2":8}');
+
+
+/* --- planet details: escape velocity, gases held, magnetic field, sky, Hill, Roche, Trojans --- */
+check('Escape velocity: Earth 11.19 km/s, Mars about 5.0 km/s', near(S.escapeKms(1, 1), 11.19, 0.01) && near(S.escapeKms(0.107, 0.532), 5.0, 0.1), S.escapeKms(0.107, 0.532).toFixed(2));
+check('Thermal velocity of hydrogen at 288 K is about 1.9 km/s', near(S.thermalKms(288, 2), 1.9, 0.02), S.thermalKms(288, 2).toFixed(3));
+var earthGases = S.heldGases(11.19, 288), marsGases = S.heldGases(5.03, 210);
+check('An Earth holds nitrogen, oxygen, water and CO2 but not hydrogen (escape > 6 x thermal)', ['N2', 'O2', 'H2O', 'CO2'].every(function(g){ return earthGases.indexOf(g) >= 0; }) && earthGases.indexOf('H2') < 0, earthGases.join(' '));
+check('A Mars holds CO2 and nitrogen but not hydrogen or helium', marsGases.indexOf('CO2') >= 0 && marsGases.indexOf('N2') >= 0 && marsGases.indexOf('H2') < 0 && marsGases.indexOf('He') < 0, marsGases.join(' '));
+check('Sky: no air gives a black sky; a red dwarf with standard air gives salmon; a Sun-like star gives blue', /Black/.test(S.skyOf(5800, 'None', 'Rock')) && /Salmon/.test(S.skyOf(3200, 'Standard', 'Garden')) && /Blue/.test(S.skyOf(5800, 'Standard', 'Garden')));
+var det = S.generate(base), detBad = [];
+det.bodies.forEach(function(b){
+  if (b.isStar || b.isMoon) return;
+  if (!(b.hillKm > b.radiusKm) || !(b.rocheKm > b.radiusKm) || typeof b.trojans !== 'boolean' || !isFinite(b.escapeKms)) detBad.push(b.id + ' basics');
+  if (!b.giant && (!b.magnetic || !b.sky || !Array.isArray(b.gasesHeld))) detBad.push(b.id + ' rocky details');
+  if (!b.giant && (b.lockTo || /Ice|Hadean|Ammonia|Sulfur/.test(b.worldType)) && b.magnetic !== 'None') detBad.push(b.id + ' magnetic');
+});
+check('Every planet gets a Hill sphere, Roche limit, escape velocity and a Trojan roll; rocky ones a field, a sky and a gas list', !detBad.length, detBad.join(', '));
+// Fingerprint of one system with the detail fields left out. Taken from the 0.6.0 generator before Trojans, gases and the rest were added,
+// so a match proves the additions shifted no earlier roll. If generation is changed on purpose, update the hash and bump VERSION.
+var strip = function(g){ return JSON.stringify(g.bodies.map(function(b){ var c = {}; for (var k in b) if (['escapeKms', 'gasesHeld', 'magnetic', 'sky', 'hillKm', 'rocheKm', 'trojans'].indexOf(k) < 0) c[k] = b[k]; return c; })) + JSON.stringify(g.notes); };
+var fp = require('crypto').createHash('sha1').update(strip(det)).digest('hex');
+check('Adding the detail fields changed nothing the generator already made (fingerprint from 0.6.0)', fp === 'a0fe225ccfec0fe1ed8b7ab6b64669904101bd74', fp);
+
+
+/* --- review fixes --- */
+check('Links naming an inherited property as the star are refused, and cleanup falls back to a Sun-like star',
+  ['constructor', 'toString', '__proto__', 'hasOwnProperty'].every(function(k){ return S.decodeCfg('4.' + k + '.0.46.4.4.1.1.3.hz.c.n.1.-') === null && S.normalise({star:k}).star === 'G'; }));
+check('Choosing the class the rules rolled anyway still counts as a choice (so the menu shows it, not Auto)',
+  (function(){ var b = q(S.generate(Object.assign({}, base, {sizes:{2:S.SIZE_ORDER.indexOf(p2a.sizeClass)}})), 'p2'); return b.sizeSet === true && b.sizeClass === p2a.sizeClass; })());
 
 console.log(failed ? '\n' + failed + ' of ' + results.length + ' FAILED' : '\nAll ' + results.length + ' checks passed.');
 process.exit(failed ? 1 : 0);

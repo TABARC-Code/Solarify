@@ -58,5 +58,20 @@ T.resourceValue = [[[3,3],null,"Worthless",-5],[[4,4],null,"Very Scant",-4],[[5,
 T.volcanic = [[[-99,16],"None"],[[17,20],"Light"],[[21,26],"Moderate"],[[27,70],"Heavy"],[[71,99],"Extreme"]];
 // [atmosphere, day-face factor, night-face factor, final atmosphere, hydrographics penalty]
 T.tideLocked = [["None or Trace",1.2,0.1,"None","-100%"],["Very Thin",1.2,0.1,"Trace","-100%"],["Thin",1.16,0.67,"Very Thin","-50%"],["Standard",1.12,0.8,"Standard","-25%"],["Dense",1.09,0.88,"Dense","-10%"],["Very Dense",1.05,0.95,"Very Dense","-0%"],["Superdense",1.0,1.0,"Superdense","-0%"]];
+
+/* TABARC-Studio additions (rules of thumb added in the studio workbook, not from the original tables). */
+// gas retention: a gas stays if escape velocity is more than this many times its thermal velocity (a common rough Jeans-escape rule)
+T.gasRetentionRatio = 6;
+// [gas, molecular mass in atomic mass units]
+T.gases = [["H2",2],["He",4],["CH4",16],["NH3",17],["H2O",18],["N2",28],["O2",32],["CO2",44]];
+// [case, field]; how app and generator decide the case is written next to the code that uses it
+T.magneticField = [["Iron core, Standard or Large world, fast spin","Strong"],["Small world or slow spin","Moderate"],["Icy core or tide-locked","None"]];
+// [planet kind, 3d modifier]; a Trojan cluster at L4 and L5 on 12 or more after the modifier
+T.trojans = [["giant",0],["rocky",-4]];
+T.trojanTarget = 12;
+// [case, sky]
+T.sky = [["No or trace atmosphere","Black, with a harsh star and sharp shadows"],["O or B star, thin atmosphere","Black, with a brilliant star"],
+  ["G or K star, standard atmosphere","Blue to cyan, with a white-yellow star"],["M star, standard atmosphere","Salmon to rust, with a dim red star"],
+  ["Dense carbon dioxide","Hazy orange-white"]];
 return T;
 });

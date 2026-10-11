@@ -92,6 +92,10 @@ The order is the design. Age feeds the star, the star sets the limits and the zo
 
 That's also why the extra link field is optional: with it absent, generation is unchanged and version 4 links still open.
 
+**The studio workbook's additions, checked before use.** A later version of the TABARC-Studio workbook added orbital mechanics, planetary details and travel calculators. I took what was sound and fixed what wasn't. The workbook's Hohmann travel-time formula multiplies by pi and divides by 365.25, which gives nonsense; the right one is half the transfer orbit's period, 0.5 x ((r1 + r2) / 2)^1.5 / sqrt(M) years. Its Hohmann delta-v is the first burn only, so I added the arrival burn. Its Hill sphere mixes Earth and solar masses, which is out by a factor of about 69; the generator already did it properly. Its habitable zone (0.95 and 1.37 times the square root of brightness) is an older approximation, so I kept Kopparapu. The gas-retention rule, magnetic field, sky colours and Trojan roll went in as rules of thumb, labelled as such, with my own fill-ins where the tables left gaps (an F star's sky, for one). The light-delay and constant-thrust formulas were right as they stood. Settlement and factions stay out for now, because Solarify has no people in it yet.
+
+**New detail had to leave old systems alone.** Trojans need a dice roll, and a roll in the wrong place shifts every number after it. So it comes after the moons, in the planet's own stream, and a test pins a fingerprint of a system made by the previous version to prove nothing earlier moved. A comparison of 200 systems against that version found no difference apart from the new fields.
+
 **Moons say no.** A moon holds an orbit only within a fraction of its planet's Hill sphere, so you get fewer than you asked for, with a note. Rocky planets near a star usually get none. This is the one place the builder refuses the user, and I think that's right: it's physics doing something visible.
 
 ### Rejected
@@ -127,7 +131,7 @@ Images users drop in are downscaled to the GPU's limit if they're bigger, and re
 
 **Unverified:** behaviour on a real GPU, on a weak phone, and on GitHub Pages. Everything I've seen was software-rendered.
 
-**Not modelled:** tectonics, special slow-rotation cases, and anything about settlement, technology, society or economy, which wouldn't change what a system looks like.
+**Not modelled:** tectonics (the workbook has the table but not the modifiers that feed it, and I'd rather leave it out than invent them), special slow-rotation cases, and anything about settlement, technology, society or economy, which wouldn't change what a system looks like.
 
 ## Limitations and awkward bits
 

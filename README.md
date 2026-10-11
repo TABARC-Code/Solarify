@@ -85,13 +85,34 @@ With a companion star, planets either orbit the primary alone and stay clear of 
 
 Click any body. A rocky planet shows its size class and world type, density, gravity, mass, atmosphere (how thick, and whether you could breathe it), how much of the surface is liquid water, surface temperature with a climate word, the temperature it would have without an atmosphere, volcanic activity, resources, habitability, and a combined affinity score. A tide-locked world adds day-side and night-side temperatures. Giants show size class, mass and density. A star shows its type, age, lifetime, habitable zone, snow line, and its companion if it has one.
 
+### The extra detail on a planet
+
+Under the usual facts, a built rocky planet also shows:
+
+- **Escape velocity**, from its mass and diameter.
+- **What it can hold on to**: the gases whose molecules move slowly enough, at the surface temperature, to stay. The rule is the common rough one, escape velocity above six times the gas's thermal speed. It uses surface temperature, where the real thing is decided higher up where it's hotter, so it's generous: an Earth comes out keeping helium, which the real one doesn't.
+- **Magnetic field**: strong for an iron-cored Standard or Large world spinning faster than once every two days, none for an icy core or a tide-locked world, moderate otherwise. The two-day line is mine.
+- **Sky**: the colour you'd see, from the star's temperature and the air.
+
+Every built planet shows its **Hill sphere** (how far out a moon can stay; real moons stay inside about a third of it) and its **Roche limit** for an icy moon (closer than that it breaks up). Some have **Trojan asteroids**, two swarms sharing the orbit 60 degrees ahead and behind, drawn as dust clouds that keep pace. Giants get them on a 3d roll of 12 or more, rocky planets far less often. In our own system Jupiter has them, because it does.
+
+### Travel
+
+Pick a planet or moon, and **Travel to** in the Selected section works out the trip to any other planet, in both our system and a built one:
+
+- **Transfer (Hohmann)**: the cheapest two-burn route between the two orbits, as km/s for each burn and the total, and how long it takes. Earth to Mars comes out at 2.9 + 2.6 = 5.6 km/s and 259 days, which matches the textbook figure.
+- **Light delay now**, from where the two actually are.
+- **At 1 g** and **at 0.1 g**: accelerate halfway, flip, slow down, in a straight line, over today's distance.
+
+These are rough on purpose. The orbits are treated as circles, the planets' own gravity is left out, and the constant-thrust times ignore the star. A moon travels as its planet.
+
 ### Resizing one planet
 
 Click a planet, then use **Planet size** in the Selected section. Rocky planets can be Tiny, Small, Standard or Large. Giants can be Small, Medium or Large. **Auto** is whatever the rules rolled, and the list shows what that was.
 
 Size isn't just a scale knob. Type, atmosphere, gravity, mass, surface temperature, climate, resources, habitability and moons are worked out again for the new size, so a Tiny world loses its atmosphere (the tables give it none) and a Large one usually ends up with a much denser one. Every other planet stays exactly as it was. The choice goes into the share link (the tail after the seed, for example `.2x0` for planet 2 set to Tiny, or `-` for none) and into project files.
 
-Two limits. A home world made Tiny or Small can't hold the habitable-zone brief, so it is typed by temperature like any other world and a note says so. And the choice belongs to a planet's slot (rocky planets first, then giants), so changing how many planets you ask for can move a slot to a different planet. A rocky size never lands on a giant, or the reverse. **Roll a new system** clears all size choices, because they described the old roll. Our own Solar System has real sizes and no picker.
+Two limits. A home world made Tiny or Small can't hold the habitable-zone brief, so it is typed by temperature like any other world and a note says so. And the choices belong to planet slots (rocky planets first, then giants), so anything that reshuffles the planets clears them, with a toast saying so: the star, its mass, the age, the planet counts, belts, giant layout, companion, home world and seed. Only the moon sliders leave them alone. Our own Solar System has real sizes and no picker.
 
 **Exact diameter** is a slider just underneath. It runs from the smallest to the largest diameter the class allows for that planet (the limits depend on its temperature and density, so they differ from planet to planet) and shows the result in Earth diameters. Gravity and mass follow the diameter. Type and class don't change, because the slider stays inside the class. For a giant the range is the spread of that class in the tables, and mass follows from density. **Rolled diameter** puts the original back. Picking a different class drops the slider setting and starts again from that class's own roll.
 
@@ -180,9 +201,9 @@ node tests/system.test.js
 
 No dependencies, no network. I ran them on Node 22. Other versions are untested.
 
-`orbits.test.js` has 28 checks on the orbit maths against real events: equinoxes and solstices (with a precession correction, explained in the file header), Earth's perihelion and aphelion, planetary oppositions, Kepler's equation, and Moon phase against real full and new moons.
+`orbits.test.js` has 33 checks on the orbit maths against real events: equinoxes and solstices (with a precession correction, explained in the file header), Earth's perihelion and aphelion, the travel maths against textbook Earth to Mars figures, planetary oppositions, Kepler's equation, and Moon phase against real full and new moons.
 
-`system.test.js` has 71 checks: published numbers, arithmetic the builder promises, and a fuzz run of 864 random systems checking what must always hold. Orbits never cross, nothing sits inside its star, planets stay out of a companion's forbidden zone, belts keep clear, moons stay inside the stability limit, and the same seed gives the same system. Both files passed when I last ran them. I also pushed 20,000 fully random systems through the same checks once, and those passed too.
+`system.test.js` has 80 checks: published numbers, arithmetic the builder promises, and a fuzz run of 864 random systems checking what must always hold. Orbits never cross, nothing sits inside its star, planets stay out of a companion's forbidden zone, belts keep clear, moons stay inside the stability limit, and the same seed gives the same system. Both files passed when I last ran them. I also pushed 20,000 fully random systems through the same checks once, and those passed too.
 
 The interface has no automated tests in this repository. I checked it with throwaway Playwright scripts in headless Chromium, covering selection, keys, time, scale modes, the builder form, both companion-star cases, belts, the planet panel, share links, dropping images, project files (including hostile ones), a phone-sized viewport and the no-WebGL fallback. Those scripts aren't included, so treat the interface as looked at, not covered.
 

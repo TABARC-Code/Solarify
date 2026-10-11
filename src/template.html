@@ -192,10 +192,10 @@
   #bodyList + .action,#moonWrap + .action{margin-top:12px}
   #selName{font-weight:400;font-style:italic;font-size:22px;line-height:1.15;color:var(--drawer-ink)}
   #selKind{margin:3px 0 10px;font-family:var(--sans);font-size:13px;color:var(--drawer-muted)}
-  #facts{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0 0 4px;font-family:var(--sans);font-size:13.5px;line-height:1.35}
-  #facts dt{color:var(--drawer-muted)}
-  #facts dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;color:var(--drawer-ink)}
-  #facts .live{color:var(--brass)}
+  #facts,#travelFacts{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0 0 4px;font-family:var(--sans);font-size:13.5px;line-height:1.35}
+  #facts dt,#travelFacts dt{color:var(--drawer-muted)}
+  #facts dd,#travelFacts dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;color:var(--drawer-ink)}
+  #facts .live,#travelFacts .live{color:var(--brass)}
   #factNote{font-family:var(--sans);font-size:12px;color:var(--drawer-muted);margin-top:6px;line-height:1.4}
 
   /* ---------- overlays ---------- */
@@ -344,6 +344,12 @@
       <p id="selKind" aria-live="polite">Star</p>
       <dl id="facts"></dl>
       <p id="factNote"></p>
+    </div>
+    <div class="row" id="travelRow" hidden>
+      <span class="label">Travel to</span>
+      <select id="travelTo" aria-label="Travel to"></select>
+      <dl id="travelFacts" style="margin-top:12px"></dl>
+      <p class="advice" id="travelNote">Rough figures for play. The transfer is the cheapest two-burn route between the two orbits, treated as circles, leaving out the planets' own gravity. The constant-thrust times are straight-line, speeding up then slowing down, and use the distance right now.</p>
     </div>
     <div class="row" id="sizeRow" hidden>
       <span class="label">Planet size</span>
